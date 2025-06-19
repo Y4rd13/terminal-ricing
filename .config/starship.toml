@@ -1,0 +1,60 @@
+# ~/.config/starship.toml
+# Configuración Starship - Tokyo Night Theme
+
+format = """
+[╭─](bold blue)$username$hostname$directory$git_branch$git_status$python$nodejs$rust$golang$cmd_duration
+[╰─](bold blue)$character"""
+
+[username]
+show_always = true
+style_user = "bold cyan"
+style_root = "bold red"
+format = "[$user]($style)"
+
+[hostname]
+ssh_only = false
+style = "bold magenta"
+format = "@[$hostname]($style) "
+
+[directory]
+style = "bold yellow"
+format = "[$path]($style)[$read_only]($read_only_style) "
+truncation_length = 3
+truncation_symbol = "…/"
+
+[git_branch]
+style = "bold green"
+format = "on [$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = "[$all_status$ahead_behind]($style)"
+
+[python]
+style = "bold blue"
+format = "[$symbol$pyenv_prefix($version)($virtualenv)]($style) "
+
+[nodejs]
+style = "bold green"
+format = "[$symbol($version)]($style) "
+
+[rust]
+style = "bold red"
+format = "[$symbol($version)]($style) "
+
+[golang]
+style = "bold cyan"
+format = "[$symbol($version)]($style) "
+
+[cmd_duration]
+style = "bold yellow"
+format = "took [$duration]($style) "
+
+[character]
+success_symbol = "[➜](bold green)"
+error_symbol = "[➜](bold red)"
+
+[time]
+disabled = false
+style = "bold white"
+format = "[$time]($style) "
