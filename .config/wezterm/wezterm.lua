@@ -154,8 +154,8 @@ config.keys = {
 
 -- 🎯 PANELES (para multiplexing)
 config.inactive_pane_hsb = {
-  saturation = 0.8,
-  brightness = 0.7,
+  saturation = 0.9,
+  brightness = 0.8,
 }
 
 -- ═══════════════════════════════════════════════════════════════
