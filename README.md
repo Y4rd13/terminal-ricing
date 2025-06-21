@@ -1,4 +1,4 @@
-# Terminal Ricing - Kali Linux / Ubuntu Setup
+# Terminal Ricing - Kali Linux Setup
 
 Setup completo para terminal moderno en Kali Linux con WezTerm, ZSH y PowerLevel10k.
 
@@ -68,8 +68,16 @@ flatpak install flathub org.wezfurlong.wezterm
 # Actualizar sistema
 sudo apt update
 
-# Instalar herramientas CLI modernas
-sudo apt install eza bat fd-find ripgrep fzf htop fastfetch curl git zsh
+# Herramientas CLI modernas
+sudo apt install eza bat fd-find ripgrep fzf htop curl git zsh
+
+# Fastfetch - Kali Linux
+sudo apt install fastfetch
+
+# Fastfetch - Ubuntu (si no está disponible en repos)
+sudo add-apt-repository ppa:zhangsongcui3371/fastfetch
+sudo apt update
+sudo apt install fastfetch
 
 # Verificar instalación
 eza --version
