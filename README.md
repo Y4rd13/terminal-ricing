@@ -431,4 +431,4 @@ cp ~/.p10k.zsh ~/dotfiles-backup/ 2>/dev/null || echo "p10k config no existe aú
 
 ---
 
-Hay que integrar la instalacion de tmux, btop, exa
+Hay que integrar la instalacion de tmux, btop, exa, cargo, bat, tldr-py, fzf

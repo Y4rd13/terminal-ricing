@@ -1,3 +1,12 @@
+# ————————————————————————————————
+# 🎨 INFO DEL SISTEMA AL INICIO
+# ————————————————————————————————
+# Ejecutar antes del instant prompt para evitar warnings
+if command -v fastfetch &> /dev/null; then
+    timeout 5s fastfetch 2>/dev/null \
+      || echo "⚡ Fastfetch timeout — terminal listo"
+fi
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
@@ -40,22 +49,6 @@ export FZF_DEFAULT_OPTS='--height 50% --layout=reverse --border --margin=1 --pad
 export FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git'
 export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
 
-# The Fuck (reinstalado vía pip)
-if command -v thefuck &> /dev/null; then
-    eval "$(thefuck --alias)"
-fi
-
-# ————————————————————————————————
-# 🎨 INFO DEL SISTEMA AL INICIO
-# ————————————————————————————————
-if command -v fastfetch &> /dev/null; then
-    timeout 5s fastfetch 2>/dev/null \
-      || echo "⚡ Fastfetch timeout — terminal listo"
-elif command -v neofetch &> /dev/null; then
-    timeout 5s neofetch 2>/dev/null \
-      || echo "⚡ Neofetch timeout — terminal listo"
-fi
-
 # ————————————————————————————————
 # ⚙️ HISTORIAL & COMPLETADO
 # ————————————————————————————————
@@ -97,7 +90,7 @@ fi
 
 # tldr (ayuda rápida)
 if command -v tldr &> /dev/null; then
-    alias tldr='tldr --update && tldr'
+    alias tldr='tldr'
 fi
 
 # find/grep modernos
@@ -278,13 +271,34 @@ diagnose_fastfetch() {
 }
 
 # ————————————————————————————————
+# 💡 TIPS Y MENSAJES
+# ————————————————————————————————
+random_tip() {
+    local tips=(
+        "💡 Tip: Usa 'fcd' para navegar con fzf"
+        "💡 Tip: 'bat' resalta archivos"
+        "💡 Tip: 'eza --tree' muestra árbol"
+        "💡 Tip: 'rg pattern' busca rápido"
+        "💡 Tip: 'z directorio' cd inteligente"
+        "💡 Tip: Ctrl+Space acepta sugerencias"
+        "💡 Tip: 'weather ciudad' clima rápido"
+        "💡 Tip: 'extract archivo' descomprime"
+        "💡 Tip: 'backup archivo' copia seguridad"
+        "💡 Tip: Ctrl+R historial difuso"
+        "💡 Tip: Alt+C cd con fzf"
+    )
+    (( RANDOM % 10 == 0 )) && \
+      echo -e "\033[33m${tips[RANDOM % ${#tips[@]}]}\033[0m"
+}
+
+# ————————————————————————————————
 # 🔌 PLUGINS ZSH
 # ————————————————————————————————
 
 # zsh-autosuggestions
 if [[ ! -d ~/.zsh/zsh-autosuggestions ]]; then
     git clone https://github.com/zsh-users/zsh-autosuggestions \
-      ~/.zsh/zsh-autosuggestions
+      ~/.zsh/zsh-autosuggestions &>/dev/null
 fi
 source ~/.zsh/zsh-autosuggestions/zsh-autosuggestions.zsh
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE="fg=#666666"
@@ -293,7 +307,7 @@ ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 # zsh-syntax-highlighting
 if [[ ! -d ~/.zsh/zsh-syntax-highlighting ]]; then
     git clone https://github.com/zsh-users/zsh-syntax-highlighting.git \
-      ~/.zsh/zsh-syntax-highlighting
+      ~/.zsh/zsh-syntax-highlighting &>/dev/null
 fi
 source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
@@ -316,28 +330,6 @@ bindkey '^ ' autosuggest-accept
 if command -v starship &> /dev/null; then
     eval "$(starship init zsh)"
 fi
-
-# ————————————————————————————————
-# 💡 TIPS Y MENSAJES
-# ————————————————————————————————
-random_tip() {
-    local tips=(
-        "💡 Tip: Usa 'fcd' para navegar con fzf"
-        "💡 Tip: 'bat' resalta archivos"
-        "💡 Tip: 'eza --tree' muestra árbol"
-        "💡 Tip: 'rg pattern' busca rápido"
-        "💡 Tip: 'z directorio' cd inteligente"
-        "💡 Tip: Ctrl+Space acepta sugerencias"
-        "💡 Tip: 'weather ciudad' clima rápido"
-        "💡 Tip: 'extract archivo' descomprime"
-        "💡 Tip: 'backup archivo' copia seguridad"
-        "💡 Tip: Ctrl+R historial difuso"
-        "💡 Tip: Alt+C cd con fzf"
-    )
-    (( RANDOM % 10 == 0 )) && \
-      echo -e "\033[33m${tips[RANDOM % ${#tips[@]}]}\033[0m"
-}
-random_tip
 
 # ─────────────────────────────────────────────────────────────────
 
