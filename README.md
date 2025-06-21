@@ -428,3 +428,7 @@ cp ~/.p10k.zsh ~/dotfiles-backup/ 2>/dev/null || echo "p10k config no existe aú
 
 **Versión:** 2.0 - ZSH + PowerLevel10k  
 **Compatibilidad:** Kali Linux x86_64
+
+---
+
+Hay que integrar la instalacion de tmux, btop, exa

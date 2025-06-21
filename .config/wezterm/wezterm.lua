@@ -2,29 +2,39 @@
 local wezterm = require 'wezterm'
 local config = wezterm.config_builder()
 
--- 🎨 COLORES Y TEMA
-config.color_scheme = 'Tokyo Night'
-
--- Esquema de colores personalizado (alternativa)
-config.colors = {
-  foreground = '#c0caf5',
-  background = '#1a1b26',
-  cursor_bg = '#c0caf5',
-  cursor_fg = '#1a1b26',
-  cursor_border = '#c0caf5',
-  selection_fg = '#c0caf5',
-  selection_bg = '#33467c',
-  split = '#7aa2f7',  -- Color azul Tokyo Night para bordes
-  
-  ansi = {
-    '#15161e', '#f7768e', '#9ece6a', '#e0af68',
-    '#7aa2f7', '#bb9af7', '#7dcfff', '#a9b1d6',
-  },
-  brights = {
-    '#414868', '#f7768e', '#9ece6a', '#e0af68',
-    '#7aa2f7', '#bb9af7', '#7dcfff', '#c0caf5',
-  },
+config.set_environment_variables = {
+  PATH = os.getenv("HOME").."/.cargo/bin:"..
+         os.getenv("HOME").."/.local/bin:"..
+         os.getenv("PATH"),
 }
+
+-- 🐚 SHELL CONFIGURATION
+-- Arranca tmux (o zsh si no hay sesión)
+-- config.default_prog = {
+--  'tmux', 'new-session', '-A', '-s', 'main',
+--  '--', '/usr/bin/zsh', '-l',
+-- }
+config.default_prog = { '/usr/bin/zsh', '-l' }
+
+
+-- 🎨 COLORES Y TEMA
+config.color_scheme = 'Dracula' -- 'Tokyo Night'
+config.bold_brightens_ansi_colors = true
+config.force_reverse_video_cursor = true
+
+-- ═══════════════════════════════════════════════════════════════
+-- Gradiente en el fondo
+config.window_background_gradient = {
+  orientation = 'Vertical',
+  colors = {
+    '#1a1b26',
+    '#16161e',
+  },
+  interpolation = 'Linear',
+  blend = 'Rgb',
+}
+
+config.macos_window_background_blur = 20
 
 -- 🔤 FUENTES
 config.font = wezterm.font_with_fallback {
@@ -36,16 +46,9 @@ config.font_size = 13
 config.line_height = 1.1
 
 -- ✨ EFECTOS VISUALES
-config.window_background_opacity = 0.85
-config.text_background_opacity = 0.8
+config.window_background_opacity = 0.92
+config.text_background_opacity = 1.0
 
--- Imagen de fondo (opcional)
--- config.window_background_image = '/path/to/your/wallpaper.jpg'
--- config.window_background_image_hsb = {
---   brightness = 0.3,
---   hue = 1.0,
---   saturation = 1.0,
--- }
 
 -- 🪟 VENTANA
 config.window_decorations = "RESIZE"
@@ -73,36 +76,36 @@ config.keys = {
   -- Split horizontal
   {
     key = 'f',
-    mods = 'CMD|SHIFT',
+    mods = 'CTRL|SHIFT',
     action = wezterm.action.SplitHorizontal { domain = 'CurrentPaneDomain' },
   },
   
   -- Split vertical
   {
     key = 'd',
-    mods = 'CMD|SHIFT',
+    mods = 'CTRL|SHIFT',
     action = wezterm.action.SplitVertical { domain = 'CurrentPaneDomain' },
   },
   
   -- Cambiar entre paneles
   {
     key = 'LeftArrow',
-    mods = 'CMD',
+    mods = 'CTRL',
     action = wezterm.action.ActivatePaneDirection 'Left',
   },
   {
     key = 'RightArrow',
-    mods = 'CMD',
+    mods = 'CTRL',
     action = wezterm.action.ActivatePaneDirection 'Right',
   },
   {
     key = 'UpArrow',
-    mods = 'CMD',
+    mods = 'CTRL',
     action = wezterm.action.ActivatePaneDirection 'Up',
   },
   {
     key = 'DownArrow',
-    mods = 'CMD',
+    mods = 'CTRL',
     action = wezterm.action.ActivatePaneDirection 'Down',
   },
   
@@ -144,11 +147,10 @@ config.keys = {
   
   {
     key = 'w',
-    mods = 'CMD|SHIFT',
+    mods = 'CTRL|SHIFT',
     action = wezterm.action.CloseCurrentPane { confirm = true },
   },
 }
-
 
 -- 🎯 PANELES (para multiplexing)
 config.inactive_pane_hsb = {
@@ -161,8 +163,8 @@ config.inactive_pane_hsb = {
 -- ═══════════════════════════════════════════════════════════════
 
 -- Tamaño inicial (en columnas y filas)
-config.initial_cols = 120  -- Ancho en columnas (caracteres)
-config.initial_rows = 35   -- Alto en filas (líneas)
+config.initial_cols = 170  -- Ancho en columnas (caracteres)
+config.initial_rows = 30   -- Alto en filas (líneas)
 
 -- O alternativamente, abrir maximizada
 -- config.window_decorations = "NONE"
@@ -177,5 +179,32 @@ config.window_frame = {
 -- Comportamiento responsive al redimensionar
 config.adjust_window_size_when_changing_font_size = false
 config.use_resize_increments = false
+
+-- ═══════════════════════════════════════════════════════════════
+-- Tmux Integration
+-- ═══════════════════════════════════════════════════════════════
+table.insert(config.keys, {
+  key  = 'T',
+  mods = 'CTRL|SHIFT',
+  action = wezterm.action.SplitHorizontal {
+    domain = 'CurrentPaneDomain',
+    args   = { 'tmux', 'new-session', '-A', '-s', 'main' },
+  },
+})
+
+-- ═══════════════════════════════════════════════════════════════
+-- GUI Startup Behavior
+-- ═══════════════════════════════════════════════════════════════
+wezterm.on('gui-startup', function(cmd)
+  local mux    = wezterm.mux
+  local tab, pane, window = mux.spawn_window(cmd or {})
+
+  -- 2) Split hacia la derecha un ancho de 80 columnas y lanzar btop
+  pane:split {
+    direction = 'Right',
+    size      = 80,          -- 80 columnas exactas
+    args      = { 'btop' },
+  }
+end)
 
 return config
