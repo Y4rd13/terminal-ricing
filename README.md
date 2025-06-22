@@ -1,85 +1,91 @@
 # Terminal Ricing - Kali Linux Setup
 
-Setup completo para terminal moderno en Kali Linux con WezTerm, ZSH y PowerLevel10k.
+Complete setup for a modern terminal in Kali Linux with WezTerm, ZSH, and PowerLevel10k.
 
 ![Kali Linux Terminal](https://img.shields.io/badge/Kali-Linux-557C94?style=for-the-badge&logo=kalilinux&logoColor=white)
 ![WezTerm](https://img.shields.io/badge/WezTerm-4A90E2?style=for-the-badge)
 ![ZSH Shell](https://img.shields.io/badge/ZSH-Shell-1A2C34?style=for-the-badge)
 ![PowerLevel10k](https://img.shields.io/badge/PowerLevel10k-FF6B35?style=for-the-badge)
 
-## Tabla de Contenidos
+## Table of Contents
 
-- [Características](#características)
-- [Instalación de WezTerm](#instalación-de-wezterm)
-- [Herramientas CLI](#herramientas-cli)
-- [Configuración ZSH](#configuración-zsh)
+- [Features](#features)
+- [WezTerm Installation](#wezterm-installation)
+- [CLI Tools Installation](#cli-tools-installation)
+- [ZSH Configuration](#zsh-configuration)
 - [PowerLevel10k Setup](#powerlevel10k-setup)
-- [Configuración WezTerm](#configuración-wezterm)
-- [Configuración Fastfetch](#configuración-fastfetch)
-- [WezTerm por Defecto](#wezterm-por-defecto)
-- [Temas](#temas)
-- [Aliases y Funciones](#aliases-y-funciones)
-- [Solución de Problemas](#solución-de-problemas)
+- [WezTerm Configuration](#wezterm-configuration)
+- [Fastfetch Configuration](#fastfetch-configuration)
+- [Set WezTerm as Default](#set-wezterm-as-default)
+- [Themes](#themes)
+- [Aliases and Functions](#aliases-and-functions)
 
-## Características
+## Features
 
-- **WezTerm** - Terminal emulador con GPU acceleration
-- **ZSH Shell** - Shell con autocompletado avanzado
-- **PowerLevel10k** - Prompt personalizable
-- **Fastfetch** - Info del sistema con logo Kali
-- **CLI modernas** - eza, bat, ripgrep, fzf, fd
-- **Temas** - Tokyo Night, Catppuccin, Nord
-- **Nerd Fonts** - JetBrains Mono con iconos
+- **WezTerm** - GPU-accelerated terminal emulator
+- **ZSH Shell** - Advanced shell with autocompletion
+- **PowerLevel10k** - Customizable prompt
+- **Fastfetch** - System info with Kali logo
+- **Modern CLI tools** - eza, bat, ripgrep, fzf, fd, tmux, btop
+- **Themes** - Tokyo Night, Catppuccin, Nord, Dracula
+- **Nerd Fonts** - JetBrains Mono with icons
 
-## Instalación de WezTerm
+## WezTerm Installation
 
-### Método 1: APT Repository
+### Method 1: APT Repository
 
 ```bash
-# Agregar clave GPG de WezTerm
+# Add WezTerm GPG key
 curl -fsSL https://apt.fury.io/wez/gpg.key | sudo gpg --yes --dearmor -o /usr/share/keyrings/wezterm-fury.gpg
 
-# Agregar repositorio
+# Add repository
 echo 'deb [signed-by=/usr/share/keyrings/wezterm-fury.gpg] https://apt.fury.io/wez/ * *' | sudo tee /etc/apt/sources.list.d/wezterm.list
 
-# Actualizar e instalar
+# Update and install
 sudo apt update
 sudo apt install wezterm
 ```
 
-### Método 2: Flatpak
+### Method 2: Flatpak
 
 ```bash
-# Instalar Flatpak si no está disponible
+# Install Flatpak if not available
 sudo apt install flatpak
 
-# Agregar Flathub
+# Add Flathub
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
-# Instalar WezTerm
+# Install WezTerm
 flatpak install flathub org.wezfurlong.wezterm
 ```
 
-## Herramientas CLI
+## CLI Tools Installation
 
-### Instalación
+### Essential Tools
 
 ```bash
-# Actualizar sistema
+# Update system
 sudo apt update
 
-# Herramientas CLI modernas
-sudo apt install eza bat fd-find ripgrep fzf htop curl git zsh
+# Modern CLI tools
+sudo apt install eza bat fd-find ripgrep fzf htop curl git zsh tmux exa btop
+
+# Install cargo (Rust package manager)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Install tldr-py (better man pages)
+pip3 install tldr
 
 # Fastfetch - Kali Linux
 sudo apt install fastfetch
 
-# Fastfetch - Ubuntu (si no está disponible en repos)
+# Fastfetch - Ubuntu (if not available in repos)
 sudo add-apt-repository ppa:zhangsongcui3371/fastfetch
 sudo apt update
 sudo apt install fastfetch
 
-# Verificar instalación
+# Verify installation
 eza --version
 bat --version
 fd --version
@@ -87,348 +93,392 @@ rg --version
 fzf --version
 fastfetch --version
 zsh --version
+tmux -V
+btop --version
 ```
 
-### Instalar Nerd Fonts
+### Install Nerd Fonts
 
 ```bash
-# Crear directorio para fuentes
+# Create fonts directory
 mkdir -p ~/.local/share/fonts
 
-# Descargar JetBrains Mono Nerd Font
+# Download JetBrains Mono Nerd Font
 wget https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/JetBrainsMono.zip
 
-# Extraer e instalar
+# Extract and install
 unzip JetBrainsMono.zip -d ~/.local/share/fonts/
 fc-cache -fv
 
-# Limpiar
+# Clean up
 rm JetBrainsMono.zip
 ```
 
-## Configuración ZSH
+## ZSH Configuration
 
-### Instalar ZSH
+### Install ZSH
 
 ```bash
-# Instalar ZSH
+# Install ZSH
 sudo apt install zsh
 
-# Cambiar shell por defecto
+# Change default shell
 chsh -s $(which zsh)
 
-# Reiniciar sesión para aplicar cambios
+# Restart session to apply changes
 ```
 
-### Configuración ZSH
+### ZSH Configuration
 
-**Crear archivo:** `~/.zshrc`
+**Replace your `~/.zshrc` file with the one from this repository.**
 
-> Configuración completa con aliases, funciones, keybindings y variables de entorno.
+The configuration includes:
+
+- Complete aliases and functions
+- Key bindings
+- Environment variables
+- Plugin management (autosuggestions, syntax highlighting)
+- PowerLevel10k integration
 
 ## PowerLevel10k Setup
 
-### Instalación de PowerLevel10k
+### PowerLevel10k Installation
 
 ```bash
-# Clonar repositorio
+# Clone repository
 git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
 
-# Agregar a ~/.zshrc
-echo 'source ~/powerlevel10k/powerlevel10k.zsh-theme' >> ~/.zshrc
-
-# Recargar configuración
+# Source is already included in the repository .zshrc file
+# Reload configuration
 source ~/.zshrc
 ```
 
-### Configuración Inicial
+### Initial Configuration
 
 ```bash
-# Ejecutar wizard de configuración
+# Run configuration wizard
 p10k configure
 ```
 
-**Opciones recomendadas:**
+**Recommended options:**
 
 - ✅ Diamond icons
 - ✅ Unicode characters
 - ✅ 24-bit colors
 - ✅ Instant prompt
-- ✅ Transient prompt (opcional)
+- ✅ Transient prompt (optional)
 
-### Comandos Útiles de PowerLevel10k
+### Useful PowerLevel10k Commands
 
 ```bash
-p10k configure    # Reconfigurar prompt
-p10k reload       # Recargar configuración
-p10k display      # Mostrar configuración actual
+p10k configure    # Reconfigure prompt
+p10k reload       # Reload configuration
+p10k display      # Show current configuration
 ```
 
-## 🎨 Configuración de WezTerm
+## 🎨 WezTerm Configuration
 
-### Crear Configuración de WezTerm
+### Create WezTerm Configuration
 
-**Archivo de configuración:** `~/.config/wezterm/wezterm.lua`
+**Replace `~/.config/wezterm/wezterm.lua` with the file from this repository.**
 
-> Configuración completa con tema Tokyo Night, shell ZSH por defecto, keybindings personalizados y efectos visuales.
+The configuration includes:
 
-### Cambios Principales
+- Dracula theme (Tokyo Night available)
+- ZSH as default shell
+- Custom keybindings for panes and navigation
+- Transparency and blur effects
+- tmux integration
+- Startup behavior with btop sidebar
 
-- `config.default_prog = { '/usr/bin/zsh', '-l' }` - ZSH como shell por defecto
-- Tema Tokyo Night configurado
-- Keybindings para paneles y navegación
-- Efectos de transparencia y blur
+### Key Features
 
-## 🖼️ Configuración de Fastfetch
+- `config.default_prog = { '/usr/bin/zsh', '-l' }` - ZSH as default shell
+- Dracula theme configured
+- Keybindings for panels and navigation
+- Transparency and blur effects
+- Automatic btop sidebar on startup
 
-### Configurar Fastfetch con Logo de Kali
+## 🖼️ Fastfetch Configuration
 
-**Archivo de configuración:** `~/.config/fastfetch/config.jsonc`
+### Configure Fastfetch with Kali Logo
 
-> Configuración con logo de Kali Linux, módulos informativos y colores personalizados.
+**Replace `~/.config/fastfetch/config.jsonc` with the file from this repository.**
 
-### Alias de Fastfetch
+The configuration includes:
+
+- Kali Linux logo
+- Informative modules
+- Custom colors
+- Clean layout
+
+### Fastfetch Aliases
 
 ```bash
-ff              # fastfetch normal
-ff-full         # configuración completa
-ff-min          # configuración mínima
-ff-test         # test con timeout
+ff              # normal fastfetch
+ff-full         # complete configuration
+ff-min          # minimal configuration
+ff-test         # test with timeout
 ```
 
-## ⚙️ WezTerm como Terminal por Defecto
+## ⚙️ Set WezTerm as Default Terminal
 
-### Método GUI (Recomendado)
+### GUI Method (Recommended)
 
 ```bash
-# Abrir configuración de aplicaciones preferidas
+# Open preferred applications settings
 exo-preferred-applications
 ```
 
-1. Ir a **"Utilities"** → **"Terminal Emulator"**
-2. Seleccionar **WezTerm**
-3. Clic en **"Close"**
+1. Go to **"Utilities"** → **"Terminal Emulator"**
+2. Select **WezTerm**
+3. Click **"Close"**
 
-### Método CLI
+### CLI Method
 
 ```bash
-# Agregar WezTerm a alternatives
+# Add WezTerm to alternatives
 sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/wezterm 50
 
-# Configurarlo como por defecto
+# Set as default
 sudo update-alternatives --set x-terminal-emulator /usr/bin/wezterm
 ```
 
-## 🎭 Temas y Personalización
+## 🎭 Themes and Customization
 
-### Temas Populares para WezTerm
+### Popular WezTerm Themes
+
+**Replace in `~/.config/wezterm/wezterm.lua` from this repository:**
 
 ```lua
--- Cambiar en ~/.config/wezterm/wezterm.lua
-config.color_scheme = 'Tokyo Night'        -- Oscuro moderno (por defecto)
--- config.color_scheme = 'Catppuccin Mocha'  -- Pastel oscuro
--- config.color_scheme = 'Dracula'           -- Púrpura clásico
--- config.color_scheme = 'Nord'              -- Azul frío
--- config.color_scheme = 'Gruvbox Dark'      -- Retro cálido
--- config.color_scheme = 'One Dark'          -- VSCode style
+-- Available themes in the configuration file:
+config.color_scheme = 'Dracula'           -- Purple classic (default)
+-- config.color_scheme = 'Tokyo Night'    -- Dark modern
+-- config.color_scheme = 'Catppuccin Mocha' -- Dark pastel
+-- config.color_scheme = 'Nord'           -- Cool blue
+-- config.color_scheme = 'Gruvbox Dark'   -- Warm retro
+-- config.color_scheme = 'One Dark'       -- VSCode style
 ```
 
 ### PowerLevel10k Themes
 
 ```bash
-# Cambiar estilo de PowerLevel10k
+# Change PowerLevel10k style
 p10k configure
 
-# Estilos populares:
-# - Lean (minimalista)
-# - Classic (información completa)
-# - Rainbow (colorido)
-# - Pure (estilo pure prompt)
+# Popular styles:
+# - Lean (minimalist)
+# - Classic (complete information)
+# - Rainbow (colorful)
+# - Pure (pure prompt style)
 ```
 
-## 🔗 Aliases y Funciones Útiles
+## 🔗 Aliases and Functions
 
-### Aliases Principales en ZSH
+### Main Aliases in ZSH
+
+Based on the actual `.zshrc` configuration file:
+
+#### File Listing (eza/exa)
 
 ```bash
-# Listado mejorado con eza
-ls, ll, la, tree, lt
-
-# Comandos mejorados
-cat     # bat con syntax highlighting
-find    # fd búsqueda rápida
-grep    # ripgrep súper rápido
-top     # htop interactivo
-
-# Git shortcuts
-gs, ga, gc, gp, gl, gb, gch, gd
-
-# Navegación rápida
-.., ..., ...., home, desktop, downloads
-
-# Kali específicos
-kali-update, kali-clean, ports, myip, localip
-
-# Herramientas de penetración
-nmap-quick, nmap-full, nmap-vuln, gobuster-common
-
-# Docker shortcuts
-d, dc, dps, di, drm, drmi, dclean
+ls          # eza with icons and grouped directories
+ll          # detailed list with git info
+la          # show all files including hidden
+tree        # tree view with icons
 ```
 
-### Funciones Útiles en ZSH
+#### Enhanced Commands
 
 ```bash
-mkcd dirname        # Crear directorio y entrar
-extract archivo.zip # Extraer cualquier archivo
-fzf_find           # Buscar archivos con fzf (antes ff)
-fcd                # Cambiar directorio con fzf
-fh                 # Buscar en historial
-fkill              # Kill procesos con fzf
-weather ciudad     # Info del clima
-backup archivo     # Backup con timestamp
-search texto       # Búsqueda en archivos con rg
-publicip          # Ver IP pública y localización
-portscan IP       # Scan rápido de puertos
+cat         # bat with syntax highlighting
+find        # fd for fast file search
+grep        # ripgrep (rg) super fast search
+top         # htop interactive process viewer
 ```
 
-## 🚨 Solución de Problemas
-
-### Error "unknown option: --zsh" al abrir terminal
+#### Git Shortcuts
 
 ```bash
-# Problema resuelto en ~/.zshrc con compatibilidad fzf
-# El archivo incluye detección automática de versiones
+g           # git
+gs          # git status
+ga          # git add
+gaa         # git add all
+gc          # git commit
+gcm         # git commit -m
+gp          # git push
+gpl         # git pull
+gl          # git log --oneline
+glo         # git log --oneline --graph --decorate --all
+gb          # git branch
+gch         # git checkout
+gd          # git diff
+gds         # git diff --staged
 ```
 
-### ZSH muestra error de función
+#### Quick Navigation
 
 ```bash
-# Problema: conflicto alias 'ff' con función 'ff()'
-# Solución: función renombrada a 'fzf_find()' en ~/.zshrc
+..          # cd ..
+...         # cd ../..
+....        # cd ../../..
+home        # cd ~
+desktop     # cd ~/Desktop
+downloads   # cd ~/Downloads
+documents   # cd ~/Documents
 ```
 
-### PowerLevel10k no aparece
+#### Kali Linux Specific
 
 ```bash
-# Verificar instalación
-ls ~/powerlevel10k/
-
-# Verificar ~/.zshrc
-grep "powerlevel10k" ~/.zshrc
-
-# Reinstalar si es necesario
-rm -rf ~/powerlevel10k
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
-source ~/.zshrc
+kali-update     # apt update && upgrade
+kali-clean      # apt autoclean && autoremove
+ports           # netstat -tuln
+myip            # curl ifconfig.me
+localip         # show local IP
+listening       # show listening ports
 ```
 
-### WezTerm no usa ZSH
+#### Penetration Testing
 
 ```bash
-# Verificar wezterm.lua
-grep "default_prog" ~/.config/wezterm/wezterm.lua
-
-# Debe contener:
-# config.default_prog = { '/usr/bin/zsh', '-l' }
+nmap-quick      # nmap -T4 -F
+nmap-full       # nmap -T4 -A -v
+nmap-vuln       # nmap --script vuln
+gobuster-common # gobuster with common wordlist
+nikto-scan      # nikto -h
 ```
 
-### Fastfetch timeout
+#### Development
 
 ```bash
-# El ~/.zshrc incluye timeout de 5s para evitar cuelgues
-# Si persiste, usar:
-ff-test    # versión con timeout de 3s
+python      # python3
+pip         # pip3
+serve       # python HTTP server on port 8000
+server      # python HTTP server
+venv        # python3 -m venv
 ```
 
-## 📝 Script de Instalación Automática
+#### Docker (if available)
 
 ```bash
-#!/bin/bash
-# Script de instalación automática - setup-zsh.sh
-
-echo "🚀 Iniciando setup ZSH + PowerLevel10k en Kali Linux..."
-
-# Actualizar sistema
-sudo apt update
-
-# Instalar WezTerm
-curl -fsSL https://apt.fury.io/wez/gpg.key | sudo gpg --yes --dearmor -o /usr/share/keyrings/wezterm-fury.gpg
-echo 'deb [signed-by=/usr/share/keyrings/wezterm-fury.gpg] https://apt.fury.io/wez/ * *' | sudo tee /etc/apt/sources.list.d/wezterm.list
-sudo apt update && sudo apt install wezterm
-
-# Instalar herramientas CLI + ZSH
-sudo apt install zsh eza bat fd-find ripgrep fzf htop fastfetch curl git
-
-# Instalar PowerLevel10k
-git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
-
-# Instalar Nerd Fonts
-mkdir -p ~/.local/share/fonts
-wget https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/JetBrainsMono.zip
-unzip JetBrainsMono.zip -d ~/.local/share/fonts/
-fc-cache -fv
-rm JetBrainsMono.zip
-
-# Configurar WezTerm como terminal por defecto
-sudo update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator /usr/bin/wezterm 50
-sudo update-alternatives --set x-terminal-emulator /usr/bin/wezterm
-
-# Cambiar a ZSH shell
-chsh -s $(which zsh)
-
-echo "✅ Setup completado. Configuraciones necesarias:"
-echo "📁 Copia ~/.zshrc desde el repositorio"
-echo "📁 Copia ~/.config/wezterm/wezterm.lua"
-echo "📁 Copia ~/.config/fastfetch/config.jsonc"
-echo "🔄 Reinicia la sesión y ejecuta 'p10k configure'"
+d           # docker
+dc          # docker-compose
+dps         # docker ps
+di          # docker images
+drm         # docker rm
+drmi        # docker rmi
+dclean      # docker system prune -f
 ```
 
-## 📚 Archivos de Configuración
-
-### Estructura de Archivos
-
-```
-~/.zshrc                              # Configuración principal ZSH
-~/.config/wezterm/wezterm.lua         # Configuración WezTerm
-~/.config/fastfetch/config.jsonc      # Configuración Fastfetch
-~/.p10k.zsh                          # Config PowerLevel10k (generado automáticamente)
-```
-
-### Backup de Configuraciones
+#### System Utilities
 
 ```bash
-# Crear backup de configuraciones
-mkdir -p ~/dotfiles-backup
-cp ~/.zshrc ~/dotfiles-backup/
-cp -r ~/.config/wezterm ~/dotfiles-backup/
-cp -r ~/.config/fastfetch ~/dotfiles-backup/
-cp ~/.p10k.zsh ~/dotfiles-backup/ 2>/dev/null || echo "p10k config no existe aún"
+h           # history
+j           # jobs
+c           # clear
+e           # exit
+r           # reset
+reload      # source ~/.zshrc
+zshconfig   # edit ~/.zshrc
+wezconfig   # edit wezterm config
 ```
+
+#### Fastfetch
+
+```bash
+ff          # fastfetch
+ff-full     # complete configuration
+ff-stable   # stable configuration
+ff-min      # minimal configuration
+ff-test     # fastfetch with timeout
+```
+
+#### Editors
+
+```bash
+vim         # nvim (if available)
+vi          # nvim (if available)
+v           # nvim (if available)
+```
+
+### Useful Functions in ZSH
+
+Based on the actual `.zshrc` configuration:
+
+```bash
+mkcd dirname        # Create directory and enter
+fzf_find           # Find files with fzf
+fcd                # Change directory with fzf
+fh                 # Search history with fzf
+fkill              # Kill processes with fzf
+weather city       # Weather information
+backup file        # Backup with timestamp
+extract file.zip   # Extract any archive
+search text        # Search in files with rg
+publicip          # Show public IP and location
+portscan IP       # Quick port scan
+up text           # Convert to uppercase
+low text          # Convert to lowercase
+diagnose_fastfetch # Diagnose fastfetch issues
+```
+
+## Additional Configuration Files
+
+The repository includes these configuration files ready to use:
+
+### tmux Configuration
+
+**File:** `~/.tmux.conf`
+
+- TPM plugin manager
+- Custom prefix (Ctrl+a)
+- Split shortcuts (| and -)
+
+### Starship Configuration
+
+**File:** `~/.config/starship.toml`
+
+- Tokyo Night theme
+- Custom format with git integration
+- Performance optimized
+
+### Ripgrep Configuration
+
+**File:** `~/.ripgreprc`
+
+- Smart case search
+- Hidden file support
+- Color configuration
+
+### btop Configuration
+
+**File:** `~/.config/btop/btop.conf`
+
+- Dracula theme
+- Optimized performance settings
+- Custom layout
 
 ---
 
-## Setup Completo
+## Quick Setup
 
 **Stack:**
 
 - WezTerm + ZSH + PowerLevel10k
-- CLI modernas: eza, bat, rg, fzf, fd
-- Tema Tokyo Night
+- Modern CLI: eza, bat, rg, fzf, fd, tmux, btop
+- Dracula/Tokyo Night themes
 - JetBrains Mono Nerd Font
-- Fastfetch con logo Kali
+- Fastfetch with Kali logo
 
-**Post-instalación:**
+**Post-installation:**
 
-1. `source ~/.zshrc`
-2. `p10k configure`
-3. `check_tools`
-
----
-
-**Versión:** 2.0 - ZSH + PowerLevel10k  
-**Compatibilidad:** Kali Linux x86_64
+1. Replace all config files with repository versions
+2. `source ~/.zshrc`
+3. `p10k configure`
+4. Restart terminal
 
 ---
 
-Hay que integrar la instalacion de tmux, btop, exa, cargo, bat, tldr-py, fzf
+**Version:** 3.0 - Complete Modern Terminal Setup  
+**Compatibility:** Kali Linux x86_64

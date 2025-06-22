@@ -144,6 +144,10 @@
         "key": "blue",
         "value": "white"
       }
+    },
+    {
+      "type": "colors",
+      "symbol": "block"
     }
   ]
 }
