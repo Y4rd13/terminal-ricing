@@ -3,7 +3,7 @@
   "logo": {
     "source": "ubuntu",
     "color": {
-      "1": "white",
+      "1": "bright_cyan",
       "2": "red"
     },
     "padding": {
