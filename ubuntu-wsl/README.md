@@ -269,6 +269,9 @@ SRC=~/projects/terminal-ricing/ubuntu-wsl
 # ZSH config
 cp "$SRC/.zshrc" ~/.zshrc
 
+# ZSH profile (runs fastfetch on startup before P10k loads)
+cp "$SRC/.zprofile" ~/.zprofile
+
 # PowerLevel10k config
 cp "$SRC/.p10k.zsh" ~/.p10k.zsh
 
@@ -322,15 +325,20 @@ Run through this checklist:
 
 ### Fastfetch doesn't show when I open the terminal
 
-The `.zshrc` in this repo doesn't run fastfetch on startup by default. To enable it, add this **at the very top** of `~/.zshrc` (before the PowerLevel10k instant prompt block):
+Fastfetch runs on startup via `~/.zprofile`, which executes before `.zshrc`. This avoids conflicts with PowerLevel10k's instant prompt.
+
+Make sure you deployed `.zprofile` during [step 9](#9-deploy-config-files):
 
 ```bash
-if command -v fastfetch &> /dev/null; then
-    timeout 5s fastfetch 2>/dev/null || echo "Fastfetch timeout"
-fi
+cp ~/projects/terminal-ricing/ubuntu-wsl/.zprofile ~/.zprofile
 ```
 
-The `timeout 5s` prevents the terminal from hanging if fastfetch takes too long.
+If fastfetch hangs on startup, you can add a timeout:
+
+```bash
+# In ~/.zprofile, replace `fastfetch` with:
+timeout 5s fastfetch 2>/dev/null || echo "Fastfetch timeout"
+```
 
 ### `echo $SHELL` shows `/bin/bash` after running `chsh`
 
