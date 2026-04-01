@@ -162,6 +162,7 @@ sudo apt install -y \
   tmux \
   btop \
   micro \
+  build-essential \
   curl \
   git \
   unzip \
