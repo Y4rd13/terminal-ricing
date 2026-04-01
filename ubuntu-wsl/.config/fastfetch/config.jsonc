@@ -1,0 +1,153 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "source": "kali",
+    "color": {
+      "1": "red",
+      "2": "bright_red"
+    },
+    "padding": {
+      "right": 3
+    }
+  },
+  "display": {
+    "separator": " ➜ ",
+    "color": {
+      "separator": "blue",
+      "output": "white"
+    }
+  },
+  "modules": [
+    {
+      "type": "title",
+      "format": "{user-name}@{host-name}",
+      "color": {
+        "user": "cyan",
+        "at": "white",
+        "host": "magenta"
+      }
+    },
+    {
+      "type": "separator",
+      "string": "────────────────────────────────────",
+      "color": "blue"
+    },
+    {
+      "type": "os",
+      "key": "💻 OS",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "host",
+      "key": "🖥️  Host",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "kernel",
+      "key": "🐧 Kernel",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "uptime",
+      "key": "⏱️  Uptime",
+      "color": {
+        "key": "blue",
+        "value": "green"
+      }
+    },
+    {
+      "type": "packages",
+      "key": "📦 Packages",
+      "color": {
+        "key": "blue",
+        "value": "cyan"
+      }
+    },
+    {
+      "type": "shell",
+      "format": "{name} {version}",
+      "key": "🐚 Shell",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "terminal",
+      "key": "📟 Terminal",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "cpu",
+      "key": "🔥 CPU",
+      "color": {
+        "key": "blue",
+        "value": "red"
+      }
+    },
+    {
+      "type": "gpu",
+      "key": "🎮 GPU",
+      "color": {
+        "key": "blue",
+        "value": "red"
+      }
+    },
+    {
+      "type": "memory",
+      "key": "🧠 Memory",
+      "color": {
+        "key": "blue",
+        "value": "green"
+      }
+    },
+    {
+      "type": "disk",
+      "key": "💾 Disk",
+      "color": {
+        "key": "blue",
+        "value": "cyan"
+      }
+    },
+    {
+      "type": "localip",
+      "key": "🌐 Local IP",
+      "color": {
+        "key": "blue",
+        "value": "cyan"
+      }
+    },
+    {
+      "type": "locale",
+      "key": "🌍 Locale",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "datetime",
+      "key": "📅 Date/Time",
+      "color": {
+        "key": "blue",
+        "value": "white"
+      }
+    },
+    {
+      "type": "colors",
+      "symbol": "block"
+    }
+  ]
+}
