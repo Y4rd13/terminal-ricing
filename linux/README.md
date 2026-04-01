@@ -68,7 +68,7 @@ flatpak install flathub org.wezfurlong.wezterm
 sudo apt update
 
 # Modern CLI tools
-sudo apt install eza bat fd-find ripgrep fzf htop curl git zsh tmux exa btop
+sudo apt install eza bat fd-find ripgrep fzf htop curl git zsh tmux exa btop micro
 
 # Install cargo (Rust package manager)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh

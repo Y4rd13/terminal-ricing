@@ -11,6 +11,23 @@ source "$HOME/powerlevel10k/powerlevel10k.zsh-theme"
 [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
 
 # ————————————————————————————————
+# EDITOR
+# ————————————————————————————————
+if command -v nvim >/dev/null 2>&1; then
+  export EDITOR="nvim"
+  export VISUAL="nvim"
+elif command -v micro >/dev/null 2>&1; then
+  export EDITOR="micro"
+  export VISUAL="micro"
+elif command -v vim >/dev/null 2>&1; then
+  export EDITOR="vim"
+  export VISUAL="vim"
+else
+  export EDITOR="nano"
+  export VISUAL="nano"
+fi
+
+# ————————————————————————————————
 # HISTORY
 # ————————————————————————————————
 HISTSIZE=50000
