@@ -70,13 +70,9 @@ WezTerm runs on the **Windows side** and connects to WSL.
 2. Run the installer
 3. Launch WezTerm
 
-### Configure WezTerm to use WSL
+### Configure WezTerm
 
-WezTerm needs to know to launch your WSL shell. The config file included in this directory handles this via:
-
-```lua
-config.default_prog = { '/usr/bin/zsh', '-l' }
-```
+WezTerm's config lives on the **Windows side** since WezTerm runs as a Windows app. By default, WezTerm on Windows detects WSL and launches it automatically.
 
 The WezTerm config file location on Windows is:
 
@@ -379,13 +375,12 @@ Run through this checklist:
 
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+Shift+F` | Split pane horizontally |
-| `Ctrl+Shift+D` | Split pane vertically |
-| `Ctrl+Arrow` | Navigate between panes |
+| `Cmd+Shift+F` | Split pane horizontally |
+| `Cmd+Shift+D` | Split pane vertically |
+| `Cmd+Arrow` | Navigate between panes |
 | `Opt+Arrow` | Resize panes |
 | `Ctrl+Shift+Z` | Zoom/unzoom pane |
-| `Ctrl+Shift+W` | Close current pane |
-| `Ctrl+Shift+T` | New tmux session |
+| `Cmd+Shift+W` | Close current pane |
 
 ### tmux
 
