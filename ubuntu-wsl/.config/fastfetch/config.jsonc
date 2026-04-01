@@ -3,8 +3,8 @@
   "logo": {
     "source": "ubuntu",
     "color": {
-      "1": "yellow",
-      "2": "red"
+      "1": "blue",
+      "2": "bright_blue"
     },
     "padding": {
       "right": 3
