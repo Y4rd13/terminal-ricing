@@ -9,16 +9,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RST='\033[0m'
 BLD='\033[1m'
 DIM='\033[2m'
-MAG='\033[38;5;199m'
-CYN='\033[38;5;51m'
-YLW='\033[38;5;226m'
-GRN='\033[38;5;46m'
-RED='\033[38;5;196m'
-ORG='\033[38;5;208m'
-WHT='\033[38;5;255m'
-GRY='\033[38;5;242m'
-BGMAG='\033[48;5;199m'
-BGCYN='\033[48;5;51m'
+MAG='\033[38;5;47m'       # matrix green
+CYN='\033[38;5;34m'       # dark terminal green
+YLW='\033[38;5;226m'      # neon yellow
+GRN='\033[38;5;46m'       # bright green
+RED='\033[38;5;196m'      # neon red
+ORG='\033[38;5;208m'      # neon orange
+WHT='\033[38;5;255m'      # bright white
+GRY='\033[38;5;240m'      # dark gray
+LIM='\033[38;5;118m'      # lime green
+BGMAG='\033[48;5;22m'     # bg dark green
+BGCYN='\033[48;5;28m'     # bg terminal green
 
 # ── Platform profiles ───────────────────────────────────────────
 
@@ -173,22 +174,29 @@ draw_banner() {
     detect_env
     clear_screen
     echo ""
+    echo -e "  ${MAG}${BLD} ██╗   ██╗██╗  ██╗██████╗ ██████╗  ██╗██████╗ ${RST}"
+    echo -e "  ${MAG}${BLD} ╚██╗ ██╔╝██║  ██║██╔══██╗██╔══██╗███║╚════██╗${RST}"
+    echo -e "  ${LIM}${BLD}  ╚████╔╝ ███████║██████╔╝██║  ██║╚██║ █████╔╝${RST}"
+    echo -e "  ${CYN}${BLD}   ╚██╔╝  ╚════██║██╔══██╗██║  ██║ ██║ ╚═══██╗${RST}"
+    echo -e "  ${MAG}${BLD}    ██║        ██║██║  ██║██████╔╝ ██║██████╔╝${RST}"
+    echo -e "  ${GRY}    ╚═╝        ╚═╝╚═╝  ╚═╝╚═════╝  ╚═╝╚═════╝ ${RST}"
+    echo ""
     echo -e "  ${MAG}${BLD} ████████╗███████╗██████╗ ███╗   ███╗${RST}"
     echo -e "  ${MAG}${BLD} ╚══██╔══╝██╔════╝██╔══██╗████╗ ████║${RST}"
-    echo -e "  ${CYN}${BLD}    ██║   █████╗  ██████╔╝██╔████╔██║${RST}"
+    echo -e "  ${LIM}${BLD}    ██║   █████╗  ██████╔╝██╔████╔██║${RST}"
     echo -e "  ${CYN}${BLD}    ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║${RST}"
     echo -e "  ${MAG}${BLD}    ██║   ███████╗██║  ██║██║ ╚═╝ ██║${RST}"
     echo -e "  ${GRY}    ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝${RST}"
     echo ""
     echo -e "  ${GRY}┌──────────────────────────────────────────────────────────┐${RST}"
-    echo -e "  ${GRY}│${RST}  ${CYN}${BLD}T E R M I N A L   R I C I N G${RST}  ${GRY}///${RST} ${MAG}Setup Wizard${RST} ${DIM}v${VERSION}${RST}   ${GRY}│${RST}"
+    echo -e "  ${GRY}│${RST}  ${LIM}${BLD}T E R M I N A L   R I C I N G${RST}  ${GRY}///${RST} ${MAG}Setup${RST} ${DIM}v${VERSION}${RST}          ${GRY}│${RST}"
     echo -e "  ${GRY}├──────────────────────────────────────────────────────────┤${RST}"
-    printf "  ${GRY}│${RST}  ${GRY}SYS${RST} ${WHT}%-14s${RST} ${GRY}SHELL${RST} ${WHT}%-8s${RST} ${GRY}HOME${RST} ${CYN}~/${RST}           ${GRY}│${RST}\n" "$DETECTED_OS" "$DETECTED_SHELL"
+    printf "  ${GRY}│${RST}  ${GRY}SYS${RST} ${WHT}%-14s${RST} ${GRY}SHELL${RST} ${WHT}%-8s${RST} ${GRY}HOME${RST} ${LIM}~/${RST}           ${GRY}│${RST}\n" "$DETECTED_OS" "$DETECTED_SHELL"
     echo -e "  ${GRY}└──────────────────────────────────────────────────────────┘${RST}"
     echo ""
 
-    BANNER_END_ROW=15
-    CONTENT_START_ROW=16
+    BANNER_END_ROW=22
+    CONTENT_START_ROW=23
 }
 
 clear_content() {
