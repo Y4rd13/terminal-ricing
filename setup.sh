@@ -174,20 +174,21 @@ draw_banner() {
     detect_env
     clear_screen
     echo ""
-    printf "  ${MAG}${BLD}%s${RST}\n" '__  ____ __           __________    ______'
-    printf "  ${MAG}${BLD}%s${RST}\n" '\ \/ / // / _________/ <  /__  /   /_  __/__  _________ ___'
-    printf "  ${LIM}${BLD}%s${RST}\n" ' \  / // /_/ ___/ __  // / /_ <     / / / _ \/ ___/ __ `__ \'
-    printf "  ${LIM}${BLD}%s${RST}\n" ' / /__  __/ /  / /_/ // /___/ /    / / /  __/ /  / / / / / /'
-    printf "  ${CYN}${BLD}%s${RST}\n" '/_/  /_/ /_/   \__,_//_//____/    /_/  \___/_/  /_/ /_/ /_/'
+    echo -e "  ${MAG}${BLD} ██╗   ██╗ ██╗  ██████╗ ██████╗   ██╗ ██████╗ ${RST}"
+    echo -e "  ${MAG}${BLD} ╚██╗ ██╔╝ ██║  ██╔══██╗██╔══██╗ ███║ ╚════██╗${RST}"
+    echo -e "  ${LIM}${BLD}  ╚████╔╝  ████████████╔╝██║  ██║ ╚██║  █████╔╝${RST}"
+    echo -e "  ${LIM}${BLD}   ╚██╔╝   ╚════██╔══██╗██║  ██║  ██║  ╚═══██╗${RST}"
+    echo -e "  ${CYN}${BLD}    ██║         ██║██║  ██║██████╔╝ ██║ ██████╔╝${RST}"
+    echo -e "  ${GRY}    ╚═╝         ╚═╝╚═╝  ╚═╝╚═════╝  ╚═╝ ╚═════╝ ${RST}"
     echo ""
-    echo -e "  ${GRY}┌──────────────────────────────────────────────────────────┐${RST}"
-    echo -e "  ${GRY}│${RST}  ${LIM}${BLD}T E R M I N A L   R I C I N G${RST}  ${GRY}///${RST} ${MAG}Setup${RST} ${DIM}v${VERSION}${RST}          ${GRY}│${RST}"
-    echo -e "  ${GRY}├──────────────────────────────────────────────────────────┤${RST}"
-    printf "  ${GRY}│${RST}  ${GRY}SYS${RST} ${WHT}%-14s${RST} ${GRY}SHELL${RST} ${WHT}%-8s${RST} ${GRY}HOME${RST} ${LIM}~/${RST}           ${GRY}│${RST}\n" "$DETECTED_OS" "$DETECTED_SHELL"
-    echo -e "  ${GRY}└──────────────────────────────────────────────────────────┘${RST}"
+    echo -e "  ${GRY}┌──────────────────────────────────────────────────────┐${RST}"
+    echo -e "  ${GRY}│${RST}  ${LIM}${BLD}T E R M I N A L   R I C I N G${RST}  ${GRY}///${RST} ${MAG}Setup${RST} ${DIM}v${VERSION}${RST}      ${GRY}│${RST}"
+    echo -e "  ${GRY}├──────────────────────────────────────────────────────┤${RST}"
+    printf "  ${GRY}│${RST}  ${GRY}SYS${RST} ${WHT}%-12s${RST} ${GRY}SHELL${RST} ${WHT}%-8s${RST} ${GRY}HOME${RST} ${LIM}~/${RST}         ${GRY}│${RST}\n" "$DETECTED_OS" "$DETECTED_SHELL"
+    echo -e "  ${GRY}└──────────────────────────────────────────────────────┘${RST}"
 
-    BANNER_END_ROW=13
-    CONTENT_START_ROW=14
+    BANNER_END_ROW=15
+    CONTENT_START_ROW=16
 }
 
 clear_content() {
