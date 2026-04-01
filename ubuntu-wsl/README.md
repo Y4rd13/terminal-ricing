@@ -16,6 +16,7 @@ Complete guide to set up a modern terminal environment on Windows using WSL2, We
 - [8. Install ZSH Plugins](#8-install-zsh-plugins)
 - [9. Deploy Config Files](#9-deploy-config-files)
 - [10. Post-Install Verification](#10-post-install-verification)
+- [Troubleshooting / FAQ](#troubleshooting--faq)
 - [Reference: Aliases](#reference-aliases)
 - [Reference: Functions](#reference-functions)
 - [Reference: Keybindings](#reference-keybindings)
@@ -314,6 +315,118 @@ Run through this checklist:
 | micro works | `micro` | Terminal text editor |
 | neovim works | `nvim` | LazyVim IDE |
 | Nerd Font renders | (visual) | Icons visible in prompt and `ls` |
+
+---
+
+## Troubleshooting / FAQ
+
+### Fastfetch doesn't show when I open the terminal
+
+The `.zshrc` in this repo doesn't run fastfetch on startup by default. To enable it, add this **at the very top** of `~/.zshrc` (before the PowerLevel10k instant prompt block):
+
+```bash
+if command -v fastfetch &> /dev/null; then
+    timeout 5s fastfetch 2>/dev/null || echo "Fastfetch timeout"
+fi
+```
+
+The `timeout 5s` prevents the terminal from hanging if fastfetch takes too long.
+
+### `echo $SHELL` shows `/bin/bash` after running `chsh`
+
+`chsh` changes the default shell for **new login sessions**, not the current one. You need to fully close and reopen your WSL session:
+
+```bash
+exit
+# Then reopen from Windows (Start menu or `wsl` from PowerShell)
+```
+
+If it still shows bash, verify the change was saved:
+
+```bash
+grep $USER /etc/passwd
+```
+
+You should see `:/usr/bin/zsh` at the end. If not, run `chsh -s $(which zsh)` again and enter your password when prompted.
+
+### `p10k: command not found`
+
+PowerLevel10k isn't loaded yet. Make sure you:
+
+1. Cloned the repo ([step 6](#6-install-powerlevel10k))
+2. Deployed the config files ([step 9](#9-deploy-config-files))
+3. Ran `source ~/.zshrc`
+
+The `p10k` command only exists after `.zshrc` sources PowerLevel10k.
+
+### Icons show as squares or question marks
+
+Nerd Fonts are not installed or WezTerm isn't using them.
+
+1. Install JetBrains Mono Nerd Font **on Windows** ([step 4](#4-install-nerd-fonts))
+2. Verify WezTerm config has the correct font:
+   ```lua
+   config.font = wezterm.font_with_fallback {
+     'JetBrainsMono Nerd Font',
+     'Fira Code',
+     'monospace',
+   }
+   ```
+3. Restart WezTerm after installing fonts
+
+### `fastfetch: command not found` after `sudo apt install fastfetch`
+
+Fastfetch is not in the default Ubuntu 24.04 repos. Install via PPA:
+
+```bash
+sudo add-apt-repository ppa:zhangsongcui3371/fastfetch
+sudo apt update
+sudo apt install -y fastfetch
+```
+
+### Autosuggestions don't appear while typing
+
+The zsh-autosuggestions plugin is missing. Install it:
+
+```bash
+git clone https://github.com/zsh-users/zsh-autosuggestions ~/.zsh/zsh-autosuggestions
+source ~/.zshrc
+```
+
+### `zoxide: command not found` or `z` doesn't work
+
+zoxide installs to `~/.local/bin/`. Make sure that directory is in your PATH:
+
+```bash
+echo $PATH | tr ':' '\n' | grep local
+```
+
+If `~/.local/bin` is not listed, the `.zshrc` should add it. Run `source ~/.zshrc` or check that you deployed the config ([step 9](#9-deploy-config-files)).
+
+### tmux plugins don't load (no status bar customization)
+
+After deploying `.tmux.conf`, you need to install TPM plugins:
+
+1. Open tmux: `tmux`
+2. Press `Ctrl+a` then `I` (capital i)
+3. Wait for the install to complete
+
+### WezTerm doesn't open WSL / opens PowerShell instead
+
+WezTerm auto-detects WSL by default. If it opens PowerShell, set the default program explicitly in `wezterm.lua`:
+
+```lua
+config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/bin/zsh', '-l' }
+```
+
+### Colors look wrong or no transparency
+
+- **No transparency:** Your Windows version may not support it, or the compositor is disabled. Try adjusting `window_background_opacity` in `wezterm.lua`
+- **Wrong colors:** Make sure `truecolor` is supported. Test with:
+  ```bash
+  printf "\x1b[38;2;255;100;0mTruecolor test\x1b[0m\n"
+  ```
+  If you see orange text, truecolor works.
 
 ---
 
