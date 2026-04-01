@@ -157,6 +157,8 @@ p10k configure
 sudo apt install -y \
   eza \
   fzf \
+  ripgrep \
+  fd-find \
   tmux \
   btop \
   micro \
@@ -238,6 +240,8 @@ After deploying `.tmux.conf` ([step 9](#9-deploy-config-files)), open tmux and p
 ```bash
 eza --version
 fzf --version
+rg --version
+fdfind --version
 tmux -V
 btop --version
 micro --version
