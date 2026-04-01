@@ -174,9 +174,9 @@ draw_banner() {
     detect_env
     clear_screen
     echo ""
-    echo -e "  ${MAG}${BLD}  ╦ ╦╔═╗╦═╗╔╦╗╔╗   ╔═╗  ╔╦╗╔═╗╦═╗╔╦╗${RST}"
-    echo -e "  ${LIM}${BLD}  ╚╦╝╠═╣╠╦╝ ║║║╠╗  ╠╩╗   ║ ║╣ ╠╦╝║║║${RST}"
-    echo -e "  ${CYN}${BLD}   ╩ ╩ ╩╩╚══╩╝╩ ╩  ╚═╝   ╩ ╚═╝╩╚═╩ ╩${RST}"
+    echo -e "  ${MAG}${BLD}  █▄█ █ █ █▀▄ █▀▄ ▄█ ▀█   ▀█▀ █▀▀ █▀▄ █▄ ▄█${RST}"
+    echo -e "  ${LIM}${BLD}   █  ▀▀█ █▀▄ █ █  █  █▀    █  █▀▀ █▀▄ █ ▀ █${RST}"
+    echo -e "  ${CYN}${BLD}   █  ▄▄█ ▀ ▀ ▀▀  ▀▀ ▀▀    ▀  ▀▀▀ ▀ ▀ ▀   ▀${RST}"
     echo ""
     echo -e "  ${GRY}┌──────────────────────────────────────────────────────────┐${RST}"
     echo -e "  ${GRY}│${RST}  ${LIM}${BLD}T E R M I N A L   R I C I N G${RST}  ${GRY}///${RST} ${MAG}Setup${RST} ${DIM}v${VERSION}${RST}          ${GRY}│${RST}"
