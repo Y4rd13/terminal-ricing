@@ -138,13 +138,9 @@ echo $SHELL
 git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
 ```
 
-The `.zshrc` in this directory already sources PowerLevel10k. After deploying the config files (step 9), run:
+The `.zshrc` in this directory already sources PowerLevel10k. **Don't run `source ~/.zshrc` yet** — first complete steps 7-9 (install tools, plugins, deploy configs). The `p10k` command won't be available until the config files are in place and `.zshrc` is sourced.
 
-```bash
-source ~/.zshrc
-```
-
-PowerLevel10k's configuration wizard will launch automatically on first load. If you want to use the included `.p10k.zsh` config instead of running the wizard, just copy it (step 9) and the wizard won't appear.
+If you want to use the included `.p10k.zsh` config instead of running the wizard, copy it during step 9 and the wizard won't appear.
 
 To reconfigure later:
 
