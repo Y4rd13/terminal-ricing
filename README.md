@@ -7,7 +7,7 @@ Configuration files and setup guides for a modern, customized terminal environme
 | Directory | Description | Guide |
 |-----------|-------------|-------|
 | [ubuntu-wsl](./ubuntu-wsl/) | Ubuntu 24.04 on WSL2 with WezTerm (Windows) | Full setup from scratch |
-| [kali](./kali/) | Kali Linux native setup | WezTerm + ZSH + Starship |
+| [linux](./linux/) | Native Linux setup (Kali, Ubuntu, Debian) | WezTerm + ZSH + Starship |
 | [claude-code](./claude-code/) | Claude Code + MCP servers + plugins | Setup guide (configs in [claude-config](https://github.com/Y4rd13/claude-config)) |
 
 ## What's Inside
