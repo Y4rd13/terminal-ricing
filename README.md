@@ -4,17 +4,18 @@ Configuration files and setup guides for a modern, customized terminal environme
 
 ## Platforms
 
-| Platform | Description | Guide |
-|----------|-------------|-------|
+| Directory | Description | Guide |
+|-----------|-------------|-------|
 | [ubuntu-wsl](./ubuntu-wsl/) | Ubuntu 24.04 on WSL2 with WezTerm (Windows) | Full setup from scratch |
 | [kali](./kali/) | Kali Linux native setup | WezTerm + ZSH + Starship |
+| [claude-code](./claude-code/) | Claude Code + MCP servers + plugins | Setup guide (configs in [claude-config](https://github.com/Y4rd13/claude-config)) |
 
 ## What's Inside
 
-Each platform directory contains:
+Each directory contains:
 
-- **Config files** — dotfiles and `.config/` entries, ready to copy into place
-- **README.md** — step-by-step setup guide specific to that platform
+- **Config files** — dotfiles and `.config/` entries, ready to copy into place (or references to where they live)
+- **README.md** — step-by-step setup guide
 
 ## Tool Stack
 
