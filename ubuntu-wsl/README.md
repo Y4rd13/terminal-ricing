@@ -138,13 +138,9 @@ echo $SHELL
 git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k
 ```
 
-The `.zshrc` in this directory already sources PowerLevel10k. After deploying the config files (step 9), run:
+The `.zshrc` in this directory already sources PowerLevel10k. **Don't run `source ~/.zshrc` yet** — first complete [step 7](#7-install-cli-tools), [step 8](#8-install-zsh-plugins), and [step 9](#9-deploy-config-files) (install tools, plugins, deploy configs). The `p10k` command won't be available until the config files are in place and `.zshrc` is sourced.
 
-```bash
-source ~/.zshrc
-```
-
-PowerLevel10k's configuration wizard will launch automatically on first load. If you want to use the included `.p10k.zsh` config instead of running the wizard, just copy it (step 9) and the wizard won't appear.
+If you want to use the included `.p10k.zsh` config instead of running the wizard, copy it during [step 9](#9-deploy-config-files) and the wizard won't appear.
 
 To reconfigure later:
 
@@ -162,11 +158,21 @@ sudo apt install -y \
   fzf \
   tmux \
   btop \
-  fastfetch \
+  micro \
   curl \
   git \
   unzip \
   wget
+```
+
+### fastfetch (via PPA)
+
+`fastfetch` is not available in the default Ubuntu repos. Install via PPA:
+
+```bash
+sudo add-apt-repository ppa:zhangsongcui3371/fastfetch
+sudo apt update
+sudo apt install -y fastfetch
 ```
 
 ### zoxide (smart cd)
@@ -177,11 +183,7 @@ curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh 
 
 ### neovim
 
-```bash
-sudo apt install -y neovim
-```
-
-Or for the latest version:
+For the latest version (recommended):
 
 ```bash
 curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
@@ -189,6 +191,26 @@ sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz
 sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim
 rm nvim-linux-x86_64.tar.gz
 ```
+
+### LazyVim (neovim configuration)
+
+[LazyVim](https://www.lazyvim.org/) provides a full IDE experience on top of neovim. After installing neovim:
+
+```bash
+# Back up existing neovim config if any
+mv ~/.config/nvim{,.bak} 2>/dev/null
+mv ~/.local/share/nvim{,.bak} 2>/dev/null
+mv ~/.local/state/nvim{,.bak} 2>/dev/null
+mv ~/.cache/nvim{,.bak} 2>/dev/null
+
+# Clone LazyVim starter
+git clone https://github.com/LazyVim/starter ~/.config/nvim
+
+# Remove .git so you can add it to your own repo later
+rm -rf ~/.config/nvim/.git
+```
+
+Launch `nvim` and LazyVim will auto-install all plugins on first run.
 
 ### nvm (Node.js version manager)
 
@@ -208,7 +230,7 @@ nvm install --lts
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 ```
 
-After deploying `.tmux.conf` (step 9), open tmux and press `Ctrl+a` then `I` (capital i) to install plugins.
+After deploying `.tmux.conf` ([step 9](#9-deploy-config-files)), open tmux and press `Ctrl+a` then `I` (capital i) to install plugins.
 
 ### Verify installations
 
@@ -217,6 +239,7 @@ eza --version
 fzf --version
 tmux -V
 btop --version
+micro --version
 fastfetch --version
 zoxide --version
 nvim --version
@@ -288,6 +311,8 @@ Run through this checklist:
 | tmux works | `tmux` | Terminal multiplexer session |
 | btop works | `btop` | System monitor UI |
 | fastfetch works | `fastfetch` | System info display |
+| micro works | `micro` | Terminal text editor |
+| neovim works | `nvim` | LazyVim IDE |
 | Nerd Font renders | (visual) | Icons visible in prompt and `ls` |
 
 ---

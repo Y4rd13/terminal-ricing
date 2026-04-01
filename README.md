@@ -24,6 +24,8 @@ Each directory contains:
 | [WezTerm](https://wezfurlong.org/wezterm/) | GPU-accelerated terminal emulator |
 | [ZSH](https://www.zsh.org/) | Shell |
 | [PowerLevel10k](https://github.com/romkatv/powerlevel10k) | Prompt theme |
+| [LazyVim](https://www.lazyvim.org/) | Neovim IDE configuration |
+| [micro](https://micro-editor.github.io/) | Terminal text editor |
 | [eza](https://github.com/eza-community/eza) | Modern `ls` replacement |
 | [fzf](https://github.com/junegunn/fzf) | Fuzzy finder |
 | [zoxide](https://github.com/ajeetdsouza/zoxide) | Smart `cd` |
