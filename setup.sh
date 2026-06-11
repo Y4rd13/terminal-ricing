@@ -26,6 +26,7 @@ BGCYN='\033[48;5;28m'     # bg terminal green
 PLATFORMS=(
     "ubuntu-wsl:Ubuntu on WSL2:WSL + WezTerm (Windows side) + ZSH + P10K"
     "linux:Native Linux:Kali/Ubuntu/Debian + WezTerm + ZSH + Starship"
+    "arch:Arch / CachyOS:Arch-based + WezTerm + ZSH + Starship (pacman)"
 )
 
 # ── Dotfiles per platform ───────────────────────────────────────
@@ -44,6 +45,17 @@ DOTFILES_UBUNTU_WSL=(
 )
 
 DOTFILES_LINUX=(
+    ".zshrc:~/.zshrc:ZSH config (aliases, functions, plugins, starship):zsh"
+    ".ripgreprc:~/.ripgreprc:Ripgrep defaults (smart-case, colors):rg"
+    ".tmux.conf:~/.tmux.conf:Tmux config (prefix Ctrl+a, TPM plugins):tmux"
+    ".config/btop/btop.conf:~/.config/btop/btop.conf:Btop system monitor config:btop"
+    ".config/fastfetch/config.jsonc:~/.config/fastfetch/config.jsonc:Fastfetch display config:fastfetch"
+    ".config/starship.toml:~/.config/starship.toml:Starship prompt theme:starship"
+    ".config/wezterm/wezterm.lua:~/.config/wezterm/wezterm.lua:WezTerm terminal config:wezterm"
+)
+
+# Arch ships the same dotfiles as the native-linux profile (Starship-based).
+DOTFILES_ARCH=(
     ".zshrc:~/.zshrc:ZSH config (aliases, functions, plugins, starship):zsh"
     ".ripgreprc:~/.ripgreprc:Ripgrep defaults (smart-case, colors):rg"
     ".tmux.conf:~/.tmux.conf:Tmux config (prefix Ctrl+a, TPM plugins):tmux"
@@ -77,6 +89,7 @@ EXTRA_TOOLS=(
     "neovim:Text editor/IDE:nvim:curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz && sudo tar -C /opt -xzf nvim-linux-x86_64.tar.gz && sudo ln -sf /opt/nvim-linux-x86_64/bin/nvim /usr/local/bin/nvim && rm nvim-linux-x86_64.tar.gz"
 )
 
+# shellcheck disable=SC2034  # used by name via prompt_multi_select / nameref dispatch
 GIT_COMPONENTS=(
     "powerlevel10k:Prompt theme:~/powerlevel10k:git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ~/powerlevel10k"
     "zsh-autosuggestions:ZSH plugin:~/.zsh/zsh-autosuggestions:git clone https://github.com/zsh-users/zsh-autosuggestions ~/.zsh/zsh-autosuggestions"
@@ -86,15 +99,59 @@ GIT_COMPONENTS=(
     "nerd-fonts:JetBrains Mono Nerd Font:~/.local/share/fonts/JetBrainsMonoNerdFont-Regular.ttf:mkdir -p ~/.local/share/fonts && cd /tmp && wget -q https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip && unzip -o JetBrainsMono.zip -d ~/.local/share/fonts/ && fc-cache -fv && rm JetBrainsMono.zip"
 )
 
+# ── Arch / CachyOS: pacman packages ─────────────────────────────
+# Everything below is in the official repos (core/extra) — no AUR needed.
+# Format: "name:description:check_cmd:install_cmd" (name == pacman package).
+
+PACMAN_TOOLS=(
+    "zsh:Shell:zsh:sudo pacman -S --needed --noconfirm zsh"
+    "eza:Modern ls replacement:eza:sudo pacman -S --needed --noconfirm eza"
+    "fzf:Fuzzy finder:fzf:sudo pacman -S --needed --noconfirm fzf"
+    "ripgrep:Fast grep (rg):rg:sudo pacman -S --needed --noconfirm ripgrep"
+    "fd:Fast find:fd:sudo pacman -S --needed --noconfirm fd"
+    "bat:cat with syntax highlighting:bat:sudo pacman -S --needed --noconfirm bat"
+    "tmux:Terminal multiplexer:tmux:sudo pacman -S --needed --noconfirm tmux"
+    "btop:System monitor:btop:sudo pacman -S --needed --noconfirm btop"
+    "micro:Terminal text editor:micro:sudo pacman -S --needed --noconfirm micro"
+    "base-devel:Build tools (treesitter/AUR):gcc:sudo pacman -S --needed --noconfirm base-devel"
+    "git:Version control:git:sudo pacman -S --needed --noconfirm git"
+    "curl:HTTP client:curl:sudo pacman -S --needed --noconfirm curl"
+    "unzip:Archive extractor:unzip:sudo pacman -S --needed --noconfirm unzip"
+)
+
+PACMAN_EXTRA=(
+    "fastfetch:System info display:fastfetch:sudo pacman -S --needed --noconfirm fastfetch"
+    "zoxide:Smart cd:zoxide:sudo pacman -S --needed --noconfirm zoxide"
+    "neovim:Text editor/IDE:nvim:sudo pacman -S --needed --noconfirm neovim"
+    "starship:Prompt theme:starship:sudo pacman -S --needed --noconfirm starship"
+    "wezterm:Terminal emulator:wezterm:sudo pacman -S --needed --noconfirm wezterm"
+    "ttf-jetbrains-mono-nerd:JetBrains Mono Nerd Font::sudo pacman -S --needed --noconfirm ttf-jetbrains-mono-nerd"
+    "zsh-autosuggestions:ZSH plugin::sudo pacman -S --needed --noconfirm zsh-autosuggestions"
+    "zsh-syntax-highlighting:ZSH plugin::sudo pacman -S --needed --noconfirm zsh-syntax-highlighting"
+)
+
+# Components installed outside pacman (git clones). Nerd font + zsh plugins are
+# pacman packages on Arch, so they live in PACMAN_EXTRA, not here. PowerLevel10k
+# is omitted so the default prompt stays Starship (see arch/README.md).
+# shellcheck disable=SC2034  # used by name via prompt_multi_select / nameref dispatch
+ARCH_COMPONENTS=(
+    "tpm:Tmux plugin manager:~/.tmux/plugins/tpm:git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm"
+    "lazyvim:Neovim IDE config:~/.config/nvim:git clone https://github.com/LazyVim/starter ~/.config/nvim && rm -rf ~/.config/nvim/.git"
+)
+
 # ── User selections ─────────────────────────────────────────────
 
 SELECTED_PLATFORM=""
 PLATFORM_DIR=""
+PKG_MGR=""
 CONFLICT_POLICY=""
 declare -A SEL_DOTFILES=()
 declare -A SEL_APT_TOOLS=()
 declare -A SEL_EXTRA_TOOLS=()
 declare -A SEL_GIT_COMPONENTS=()
+declare -A SEL_PACMAN_TOOLS=()
+declare -A SEL_PACMAN_EXTRA=()
+declare -A SEL_ARCH_COMPONENTS=()
 SEL_SET_ZSH_DEFAULT=0
 
 # ── Terminal control ────────────────────────────────────────────
@@ -421,6 +478,23 @@ check_git_component() {
     [[ -e "$expanded" ]] && echo "installed" || echo ""
 }
 
+check_pacman_tool() {
+    local key="$1"
+    # Query the local package DB by name (covers tools, fonts and plugins);
+    # falls back to a group query for meta-packages like base-devel.
+    { pacman -Qq "$key" || pacman -Qqg "$key"; } &>/dev/null && echo "installed" || echo ""
+}
+
+# Populate the nameref array with the selected platform's dotfiles.
+get_platform_dotfiles() {
+    local -n _out=$1
+    case "$SELECTED_PLATFORM" in
+        ubuntu-wsl) _out=("${DOTFILES_UBUNTU_WSL[@]}") ;;
+        linux)      _out=("${DOTFILES_LINUX[@]}") ;;
+        arch)       _out=("${DOTFILES_ARCH[@]}") ;;
+    esac
+}
+
 # ── Symlink / copy engine ───────────────────────────────────────
 
 init_backup_dir() {
@@ -522,8 +596,9 @@ step_platform() {
     prompt_select "Select your platform:" "${opts[@]}"
 
     case "$REPLY" in
-        1) SELECTED_PLATFORM="ubuntu-wsl"; PLATFORM_DIR="$SCRIPT_DIR/ubuntu-wsl" ;;
-        2) SELECTED_PLATFORM="linux"; PLATFORM_DIR="$SCRIPT_DIR/linux" ;;
+        1) SELECTED_PLATFORM="ubuntu-wsl"; PLATFORM_DIR="$SCRIPT_DIR/ubuntu-wsl"; PKG_MGR="apt" ;;
+        2) SELECTED_PLATFORM="linux"; PLATFORM_DIR="$SCRIPT_DIR/linux"; PKG_MGR="apt" ;;
+        3) SELECTED_PLATFORM="arch"; PLATFORM_DIR="$SCRIPT_DIR/arch"; PKG_MGR="pacman" ;;
     esac
 }
 
@@ -531,11 +606,7 @@ step_conflict_policy() {
     # Check if any target files already exist
     local has_existing=0
     local dotfiles_ref
-    if [[ "$SELECTED_PLATFORM" == "ubuntu-wsl" ]]; then
-        dotfiles_ref=("${DOTFILES_UBUNTU_WSL[@]}")
-    else
-        dotfiles_ref=("${DOTFILES_LINUX[@]}")
-    fi
+    get_platform_dotfiles dotfiles_ref
 
     for entry in "${dotfiles_ref[@]}"; do
         IFS=':' read -r _ target _ _ <<< "$entry"
@@ -561,11 +632,7 @@ step_conflict_policy() {
 
 step_dotfiles() {
     local dotfiles_ref
-    if [[ "$SELECTED_PLATFORM" == "ubuntu-wsl" ]]; then
-        dotfiles_ref=("${DOTFILES_UBUNTU_WSL[@]}")
-    else
-        dotfiles_ref=("${DOTFILES_LINUX[@]}")
-    fi
+    get_platform_dotfiles dotfiles_ref
 
     section_header "DOTFILES"
 
@@ -596,21 +663,33 @@ step_dotfiles() {
     done
 }
 
-step_apt_tools() {
+step_packages() {
     # Build display array with only uninstalled items highlighted
-    prompt_multi_select "APT PACKAGES" APT_TOOLS SEL_APT_TOOLS check_apt_tool
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        prompt_multi_select "PACMAN PACKAGES" PACMAN_TOOLS SEL_PACMAN_TOOLS check_pacman_tool
+    else
+        prompt_multi_select "APT PACKAGES" APT_TOOLS SEL_APT_TOOLS check_apt_tool
+    fi
 }
 
 step_extra_tools() {
-    prompt_multi_select "EXTRA TOOLS" EXTRA_TOOLS SEL_EXTRA_TOOLS check_extra_tool
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        prompt_multi_select "EXTRA TOOLS" PACMAN_EXTRA SEL_PACMAN_EXTRA check_pacman_tool
+    else
+        prompt_multi_select "EXTRA TOOLS" EXTRA_TOOLS SEL_EXTRA_TOOLS check_extra_tool
+    fi
 }
 
 step_git_components() {
-    prompt_multi_select "GIT COMPONENTS" GIT_COMPONENTS SEL_GIT_COMPONENTS check_git_component
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        prompt_multi_select "GIT COMPONENTS" ARCH_COMPONENTS SEL_ARCH_COMPONENTS check_git_component
+    else
+        prompt_multi_select "GIT COMPONENTS" GIT_COMPONENTS SEL_GIT_COMPONENTS check_git_component
+    fi
 }
 
 step_zsh_default() {
-    if command -v zsh &>/dev/null || [[ "${SEL_APT_TOOLS[zsh]:-0}" == "1" ]]; then
+    if command -v zsh &>/dev/null || [[ "${SEL_APT_TOOLS[zsh]:-0}" == "1" || "${SEL_PACMAN_TOOLS[zsh]:-0}" == "1" ]]; then
         section_header "DEFAULT SHELL"
         if [[ "$(basename "${SHELL:-}")" == "zsh" ]]; then
             dimm "ZSH is already your default shell"
@@ -641,28 +720,40 @@ step_summary() {
         fi
     done
 
-    # APT tools
+    # Packages — pick the active package-manager's arrays
     echo -e "  ${MAG}│${RST}                                                      ${MAG}│${RST}"
-    local apt_count=0
-    for entry in "${APT_TOOLS[@]}"; do
+    local pkg_label="APT packages" pkg_arr=APT_TOOLS sel_pkg=SEL_APT_TOOLS
+    local extra_arr=EXTRA_TOOLS sel_extra=SEL_EXTRA_TOOLS
+    local comp_arr=GIT_COMPONENTS sel_comp=SEL_GIT_COMPONENTS
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        pkg_label="Pacman packages"; pkg_arr=PACMAN_TOOLS; sel_pkg=SEL_PACMAN_TOOLS
+        extra_arr=PACMAN_EXTRA; sel_extra=SEL_PACMAN_EXTRA
+        comp_arr=ARCH_COMPONENTS; sel_comp=SEL_ARCH_COMPONENTS
+    fi
+
+    local -n _sp_arr=$pkg_arr; local -n _sp_sel=$sel_pkg
+    local pkg_count=0
+    for entry in "${_sp_arr[@]}"; do
         local k="${entry%%:*}"
-        [[ "${SEL_APT_TOOLS[$k]:-0}" == "1" ]] && (( apt_count++ )) || true
+        [[ "${_sp_sel[$k]:-0}" == "1" ]] && (( pkg_count++ )) || true
     done
-    printf "  ${MAG}│${RST}  ${CYN}${BLD}APT packages${RST} ${GRY}(%d selected)${RST}%*s${MAG}│${RST}\n" "$apt_count" $(( 29 - ${#apt_count} )) ""
+    printf "  ${MAG}│${RST}  ${CYN}${BLD}%s${RST} ${GRY}(%d selected)${RST}%*s${MAG}│${RST}\n" "$pkg_label" "$pkg_count" $(( 41 - ${#pkg_label} - ${#pkg_count} )) ""
 
     # Extra tools
+    local -n _se_arr=$extra_arr; local -n _se_sel=$sel_extra
     local extra_count=0
-    for entry in "${EXTRA_TOOLS[@]}"; do
+    for entry in "${_se_arr[@]}"; do
         local k="${entry%%:*}"
-        [[ "${SEL_EXTRA_TOOLS[$k]:-0}" == "1" ]] && (( extra_count++ )) || true
+        [[ "${_se_sel[$k]:-0}" == "1" ]] && (( extra_count++ )) || true
     done
     printf "  ${MAG}│${RST}  ${CYN}${BLD}Extra tools${RST} ${GRY}(%d selected)${RST}%*s${MAG}│${RST}\n" "$extra_count" $(( 30 - ${#extra_count} )) ""
 
-    # Git components
+    # Components
+    local -n _sc_arr=$comp_arr; local -n _sc_sel=$sel_comp
     local git_count=0
-    for entry in "${GIT_COMPONENTS[@]}"; do
+    for entry in "${_sc_arr[@]}"; do
         local k="${entry%%:*}"
-        [[ "${SEL_GIT_COMPONENTS[$k]:-0}" == "1" ]] && (( git_count++ )) || true
+        [[ "${_sc_sel[$k]:-0}" == "1" ]] && (( git_count++ )) || true
     done
     printf "  ${MAG}│${RST}  ${CYN}${BLD}Git components${RST} ${GRY}(%d selected)${RST}%*s${MAG}│${RST}\n" "$git_count" $(( 27 - ${#git_count} )) ""
 
@@ -693,44 +784,68 @@ step_execute() {
     section_header "INSTALLING"
     echo ""
 
-    # APT tools
-    local apt_list=""
-    for entry in "${APT_TOOLS[@]}"; do
-        IFS=':' read -r key _ check_cmd install_cmd <<< "$entry"
-        [[ "${SEL_APT_TOOLS[$key]:-0}" != "1" ]] && continue
-        if command -v "$check_cmd" &>/dev/null; then
-            dimm "Skipped: ${key} (already installed)"
-        else
-            # Extract package name from install command
-            apt_list+=" $(echo "$install_cmd" | grep -oP '(?<=install -y ).*')"
+    # ── Packages ────────────────────────────────────────────────
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        # Core + extra are all official pacman packages → one transaction.
+        local pac_list=""
+        for entry in "${PACMAN_TOOLS[@]}" "${PACMAN_EXTRA[@]}"; do
+            IFS=':' read -r key _ _ install_cmd <<< "$entry"
+            [[ "${SEL_PACMAN_TOOLS[$key]:-0}" == "1" || "${SEL_PACMAN_EXTRA[$key]:-0}" == "1" ]] || continue
+            pac_list+=" $(echo "$install_cmd" | grep -oP '(?<=--noconfirm ).*')"
+        done
+        if [[ -n "$pac_list" ]]; then
+            info "Installing pacman packages:${pac_list}"
+            # --needed is idempotent; assumes the DB is synced (run pacman -Syu first).
+            sudo pacman -S --needed --noconfirm $pac_list && ok "Pacman packages installed" || err "Some pacman packages failed"
         fi
-    done
-    if [[ -n "$apt_list" ]]; then
-        info "Installing APT packages:${apt_list}"
-        sudo apt update -qq
-        sudo apt install -y $apt_list && ok "APT packages installed" || err "Some APT packages failed"
+    else
+        # APT tools
+        local apt_list=""
+        for entry in "${APT_TOOLS[@]}"; do
+            IFS=':' read -r key _ check_cmd install_cmd <<< "$entry"
+            [[ "${SEL_APT_TOOLS[$key]:-0}" != "1" ]] && continue
+            if command -v "$check_cmd" &>/dev/null; then
+                dimm "Skipped: ${key} (already installed)"
+            else
+                # Extract package name from install command
+                apt_list+=" $(echo "$install_cmd" | grep -oP '(?<=install -y ).*')"
+            fi
+        done
+        if [[ -n "$apt_list" ]]; then
+            info "Installing APT packages:${apt_list}"
+            sudo apt update -qq
+            sudo apt install -y $apt_list && ok "APT packages installed" || err "Some APT packages failed"
+        fi
+
+        # Extra tools
+        for entry in "${EXTRA_TOOLS[@]}"; do
+            IFS=':' read -r key desc check_cmd install_cmd <<< "$entry"
+            [[ "${SEL_EXTRA_TOOLS[$key]:-0}" != "1" ]] && continue
+            if command -v "$check_cmd" &>/dev/null; then
+                dimm "Skipped: ${key} (already installed)"
+            else
+                info "Installing ${key}..."
+                if eval "$install_cmd" &>/dev/null; then
+                    ok "Installed: ${key}"
+                else
+                    err "Failed: ${key}"
+                fi
+            fi
+        done
     fi
 
-    # Extra tools
-    for entry in "${EXTRA_TOOLS[@]}"; do
-        IFS=':' read -r key desc check_cmd install_cmd <<< "$entry"
-        [[ "${SEL_EXTRA_TOOLS[$key]:-0}" != "1" ]] && continue
-        if command -v "$check_cmd" &>/dev/null; then
-            dimm "Skipped: ${key} (already installed)"
-        else
-            info "Installing ${key}..."
-            if eval "$install_cmd" &>/dev/null; then
-                ok "Installed: ${key}"
-            else
-                err "Failed: ${key}"
-            fi
-        fi
-    done
-
-    # Git components
-    for entry in "${GIT_COMPONENTS[@]}"; do
+    # ── Components (git clones) — choose the platform's component set ──
+    local comp_arr_name comp_sel_name
+    if [[ "$PKG_MGR" == "pacman" ]]; then
+        comp_arr_name=ARCH_COMPONENTS; comp_sel_name=SEL_ARCH_COMPONENTS
+    else
+        comp_arr_name=GIT_COMPONENTS; comp_sel_name=SEL_GIT_COMPONENTS
+    fi
+    local -n _comp_arr=$comp_arr_name
+    local -n _comp_sel=$comp_sel_name
+    for entry in "${_comp_arr[@]}"; do
         IFS=':' read -r key desc check_path install_cmd <<< "$entry"
-        [[ "${SEL_GIT_COMPONENTS[$key]:-0}" != "1" ]] && continue
+        [[ "${_comp_sel[$key]:-0}" != "1" ]] && continue
         local expanded="${check_path/#\~/$HOME}"
         if [[ -e "$expanded" ]]; then
             dimm "Skipped: ${key} (already exists)"
@@ -749,11 +864,7 @@ step_execute() {
     info "Deploying dotfiles..."
     echo ""
     local dotfiles_ref
-    if [[ "$SELECTED_PLATFORM" == "ubuntu-wsl" ]]; then
-        dotfiles_ref=("${DOTFILES_UBUNTU_WSL[@]}")
-    else
-        dotfiles_ref=("${DOTFILES_LINUX[@]}")
-    fi
+    get_platform_dotfiles dotfiles_ref
 
     for entry in "${dotfiles_ref[@]}"; do
         IFS=':' read -r src target _ _ <<< "$entry"
@@ -788,11 +899,11 @@ step_post_install() {
     echo -e "  ${CYN}Next steps:${RST}"
     dimm "  1. Restart your terminal (or: source ~/.zshrc)"
 
-    if [[ "${SEL_GIT_COMPONENTS[tpm]:-0}" == "1" ]]; then
+    if [[ "${SEL_GIT_COMPONENTS[tpm]:-0}" == "1" || "${SEL_ARCH_COMPONENTS[tpm]:-0}" == "1" ]]; then
         dimm "  2. In tmux: Ctrl+a then I to install plugins"
     fi
 
-    if [[ "${SEL_GIT_COMPONENTS[lazyvim]:-0}" == "1" ]]; then
+    if [[ "${SEL_GIT_COMPONENTS[lazyvim]:-0}" == "1" || "${SEL_ARCH_COMPONENTS[lazyvim]:-0}" == "1" ]]; then
         dimm "  3. Run nvim — LazyVim will auto-install plugins"
     fi
 
@@ -812,7 +923,7 @@ cmd_configure() {
     step_welcome
     step_platform
     step_conflict_policy
-    step_apt_tools
+    step_packages
     step_extra_tools
     step_git_components
     step_dotfiles
@@ -829,7 +940,7 @@ cmd_status() {
     echo ""
 
     echo -e "  ${WHT}${BLD}Tools:${RST}"
-    local tools=("zsh" "eza" "fzf" "rg" "fdfind" "tmux" "btop" "micro" "fastfetch" "zoxide" "nvim" "starship")
+    local tools=("zsh" "eza" "fzf" "rg" "fd" "fdfind" "tmux" "btop" "micro" "fastfetch" "zoxide" "nvim" "starship" "wezterm")
     for cmd in "${tools[@]}"; do
         if command -v "$cmd" &>/dev/null; then
             echo -e "  ${GRN}●${RST} ${WHT}${cmd}${RST}"
@@ -886,6 +997,7 @@ cmd_help() {
     echo -e "  ${WHT}Platforms:${RST}"
     echo -e "    ${GRY}ubuntu-wsl${RST}    Ubuntu on WSL2 + WezTerm + ZSH + P10K"
     echo -e "    ${GRY}linux${RST}         Native Linux + WezTerm + ZSH + Starship"
+    echo -e "    ${GRY}arch${RST}          Arch / CachyOS + WezTerm + ZSH + Starship (pacman)"
     echo ""
 }
 

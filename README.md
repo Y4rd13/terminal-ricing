@@ -19,6 +19,7 @@ Configuration files and setup guides for a modern, customized terminal environme
 |-----------|-------------|-------|
 | [ubuntu-wsl](./ubuntu-wsl/) | Ubuntu 24.04 on WSL2 with WezTerm (Windows) | Full setup from scratch |
 | [linux](./linux/) | Native Linux setup (Kali, Ubuntu, Debian) | WezTerm + ZSH + Starship |
+| [arch](./arch/) | Native Arch Linux & CachyOS (also EndeavourOS, Manjaro) | WezTerm + ZSH + Starship (pacman) |
 | [claude-code](./claude-code/) | Claude Code + MCP servers + plugins | Setup guide (configs in [claude-config](https://github.com/Y4rd13/claude-config)) |
 
 ## What's Inside
