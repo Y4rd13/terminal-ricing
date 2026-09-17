@@ -1,5 +1,12 @@
+# ---- Startup notices (must stay above the instant prompt block) ----
+# Powerlevel10k buffers the console while zsh initializes: anything printed below the
+# preamble raises "Console output during zsh initialization detected" on every shell.
+
+# session-recall: one line when Claude Code sessions were left open. No-op without `sr`.
+{ command -v sr >/dev/null 2>&1 && sr banner; } || true
+
 # ---- Powerlevel10k instant prompt (must be near the top) ----
-# Any initialization that may require console input must go above this block.
+# Any initialization that may require console input, or print anything, goes above this.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
@@ -133,6 +140,22 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
 # ————————————————————————————————
+# bun
+# ————————————————————————————————
+export BUN_INSTALL="$HOME/.local/share/reflex/bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
+[ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
+
+# ————————————————————————————————
+# Browser for terminal tools (gh, xdg-open)
+# ————————————————————————————————
+# Picks between Brave on Windows and Linux Chromium; BROWSER_PICK=brave|linux skips the
+# prompt. The script ships in this repo at .local/bin/browser-pick.
+export BROWSER="$HOME/.local/bin/browser-pick"
+
+# ————————————————————————————————
 # Local secrets (source your own secrets file here)
 # ————————————————————————————————
+# Prefer ~/.zshenv over this file for exports: .zshrc only runs for interactive shells,
+# so anything launched without one (cron, systemd, a hook, `zsh -c`) loses them silently.
 # [[ -f "$HOME/.config/mcp/secrets.env" ]] && source "$HOME/.config/mcp/secrets.env"
