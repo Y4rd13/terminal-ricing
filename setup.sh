@@ -41,6 +41,7 @@ DOTFILES_UBUNTU_WSL=(
     ".config/btop/btop.conf:~/.config/btop/btop.conf:Btop system monitor config:btop"
     ".config/fastfetch/config.jsonc:~/.config/fastfetch/config.jsonc:Fastfetch display config:fastfetch"
     ".config/wezterm/wezterm.lua:~/.config/wezterm/wezterm.lua:WezTerm terminal config (runs on Windows side):"
+    ".local/bin/browser-pick:~/.local/bin/browser-pick:Browser chooser for gh/xdg-open (Brave on Windows vs Linux):"
 )
 
 DOTFILES_LINUX=(
@@ -860,7 +861,7 @@ cmd_status() {
 
     echo ""
     echo -e "  ${WHT}${BLD}Dotfiles:${RST}"
-    local dotfiles=(".zshrc" ".tmux.conf" ".p10k.zsh" ".ripgreprc" ".config/btop/btop.conf" ".config/fastfetch/config.jsonc" ".config/wezterm/wezterm.lua" ".config/starship.toml")
+    local dotfiles=(".zshrc" ".tmux.conf" ".p10k.zsh" ".ripgreprc" ".config/btop/btop.conf" ".config/fastfetch/config.jsonc" ".config/wezterm/wezterm.lua" ".config/starship.toml" ".local/bin/browser-pick")
     for f in "${dotfiles[@]}"; do
         local target="$HOME/$f"
         if [[ -L "$target" ]]; then
