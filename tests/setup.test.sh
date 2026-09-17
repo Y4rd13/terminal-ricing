@@ -120,6 +120,52 @@ for table in "${TABLES[@]}"; do
     report "$platform/.zshrc hardcodes an absolute /home path; this repo is public, use \$HOME" $?
 done
 
+# ── T6: browser-pick asks only where there is a terminal to ask on ────────────────
+# /dev/tty exists as a device node almost everywhere, so a guard written against its
+# existence never fires, and a run with no controlling terminal falls through to a prompt
+# that writes nowhere. A guard written against stdin instead would be wrong the other way:
+# gh runs this with stdin redirected while a usable terminal is still attached.
+bp="$REPO/ubuntu-wsl/.local/bin/browser-pick"
+sandbox="$(mktemp -d)"
+trap 'rm -rf "$sandbox"' EXIT
+
+cat > "$sandbox/brave-stub" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$1" >> "$sandbox/brave-calls"
+STUB
+chmod +x "$sandbox/brave-stub"
+
+wait_for_file() {
+    local f="$1" i
+    for ((i = 0; i < 100; i++)); do
+        [[ -s "$f" ]] && return 0
+        sleep 0.05
+    done
+    return 1
+}
+
+# No controlling terminal: open the default straight away, quietly.
+noterm_err="$(setsid env BROWSER_PICK_BRAVE="$sandbox/brave-stub" BROWSER_PICK_TIMEOUT=1 \
+    "$bp" https://example.com/noterm 2>&1 >/dev/null < /dev/null)"
+
+wait_for_file "$sandbox/brave-calls"
+report "browser-pick with no controlling terminal never reached the browser" $?
+
+grep -q 'https://example.com/noterm' "$sandbox/brave-calls" 2>/dev/null
+report "browser-pick with no controlling terminal did not pass the URL through" $?
+
+[[ -z "$noterm_err" ]]
+report "browser-pick with no controlling terminal wrote to stderr: $noterm_err" $?
+
+# A terminal is attached but stdin is redirected, which is how gh calls it: still ask.
+if command -v script >/dev/null 2>&1; then
+    out="$(printf '' | script -qec "env BROWSER_PICK_BRAVE='$sandbox/brave-stub' BROWSER_PICK_TIMEOUT=1 '$bp' https://example.com/tty < /dev/null" /dev/null 2>&1)"
+    grep -q 'Open in:' <<< "$out"
+    report "browser-pick skipped the prompt although a terminal was attached (stdin redirected is the gh case)" $?
+else
+    printf 'SKIP: script(1) not installed, cannot test the pty case\n'
+fi
+
 # ── T5: shellcheck stays clean at error severity ────────────────────────────────
 # Warning severity has 3 pre-existing findings in setup.sh; errors are the gate.
 if command -v shellcheck >/dev/null 2>&1; then
