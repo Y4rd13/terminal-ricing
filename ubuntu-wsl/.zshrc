@@ -112,6 +112,10 @@ fi
 # Terminal title (shows branch + worktree)
 # ————————————————————————————————
 precmd() {
+  # OSC 7: tells WezTerm which directory this pane is in. Without it a new split does
+  # not inherit the directory and saved layouts cannot be restored.
+  print -Pn "\e]7;file://%m%d\a"
+
   local git_dir=$(command git rev-parse --git-dir 2>/dev/null)
   local common_dir=$(command git rev-parse --git-common-dir 2>/dev/null)
   local branch=$(command git branch --show-current 2>/dev/null)
