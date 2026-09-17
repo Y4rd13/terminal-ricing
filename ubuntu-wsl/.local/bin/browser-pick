@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Browser picker for terminal tools that open URLs (gh, xdg-open and friends).
+#
+# Install:
+#   ln -sf ~/projects/terminal-ricing/ubuntu-wsl/.local/bin/browser-pick ~/.local/bin/browser-pick
+#   export BROWSER="$HOME/.local/bin/browser-pick"   # in ~/.zshrc
+#
+# Why this exists, on WSL:
+#   - Without BROWSER set, tools fall back to xdg-open, which here resolves to a
+#     Linux Chrome that is invisible from Windows.
+#   - gh splits BROWSER on spaces, so pointing it straight at
+#     "/mnt/c/Program Files/.../brave.exe" fails with: stat /mnt/c/Program.
+#     This script's path has no spaces, so it works.
+#
+# Environment:
+#   BROWSER_PICK=brave|linux    skip the prompt and use that browser
+#   BROWSER_PICK_TIMEOUT=N      seconds before falling back to the default (5)
+#   BROWSER_PICK_BRAVE=PATH     override the Brave executable (tests point this at a stub)
+
+set -u
+
+url="${1:-}"
+[ -z "$url" ] && { echo "usage: browser-pick <url>" >&2; exit 2; }
+
+brave_win="${BROWSER_PICK_BRAVE:-/mnt/c/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe}"
+timeout="${BROWSER_PICK_TIMEOUT:-5}"
+
+open_brave() { "$brave_win" "$url" >/dev/null 2>&1 & }
+open_linux() { xdg-open "$url" >/dev/null 2>&1 & }
+
+case "${BROWSER_PICK:-}" in
+  brave) open_brave; exit 0 ;;
+  linux) open_linux; exit 0 ;;
+esac
+
+# Nothing to ask when Brave is absent, or when there is no terminal to ask on.
+# /dev/tty is a device node that exists almost everywhere, so test that it OPENS rather
+# than that it exists: without a controlling terminal the open fails, and falling through
+# to the prompt would write the menu nowhere and read nothing. Testing stdin instead would
+# be wrong the other way, since gh routinely runs this with stdin redirected while a
+# perfectly good terminal is still there to ask on.
+if [ ! -e "$brave_win" ]; then open_linux; exit 0; fi
+if ! { : > /dev/tty; } 2>/dev/null; then open_brave; exit 0; fi
+
+{
+  echo ""
+  echo "  Open in:  [1] Brave on Windows (default)   [2] Linux Chromium"
+  echo "  URL: $url"
+  printf "  Choice (%ss): " "$timeout"
+} > /dev/tty
+
+choice=""
+read -r -t "$timeout" choice < /dev/tty || true
+echo "" > /dev/tty
+
+case "$choice" in
+  2) open_linux ;;
+  *) open_brave ;;
+esac
