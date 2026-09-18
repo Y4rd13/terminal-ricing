@@ -37,17 +37,21 @@ eval "$(sed -n '/^PLATFORMS=(/,/^)/p; /^DOTFILES_[A-Z_]*=(/,/^)/p' "$SETUP")"
 
 platform_table() { printf 'DOTFILES_%s\n' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
 
-PLATFORMS_KEYS=()
-for entry in "${PLATFORMS[@]}"; do
-    IFS=':' read -r key _label _desc <<< "$entry"
-    PLATFORMS_KEYS+=("$key")
-done
-
-[[ "${#PLATFORMS_KEYS[@]}" -gt 0 ]]
+# Guard before the expansion, not after: bash 4.4 and later expand an unset array to
+# nothing under `set -u`, but 3.2 aborts, and a suite that dies on its own parse failure
+# reports nothing at all.
+declare -p PLATFORMS >/dev/null 2>&1
 report "setup.sh declares no PLATFORMS at all (did the parse break?)" $?
 
+PLATFORMS_KEYS=()
+if declare -p PLATFORMS >/dev/null 2>&1; then
+    for entry in "${PLATFORMS[@]}"; do
+        IFS=':' read -r key _label _desc <<< "$entry"
+        PLATFORMS_KEYS+=("$key")
+    done
+fi
+
 # ── T0: platforms, tables and directories do not drift apart ──────────────────
-TABLES=()
 for platform in "${PLATFORMS_KEYS[@]}"; do
     table="$(platform_table "$platform")"
 
@@ -57,7 +61,6 @@ for platform in "${PLATFORMS_KEYS[@]}"; do
     [[ -d "$REPO/$platform" ]]
     report "setup.sh offers platform $platform but $platform/ does not exist" $?
 
-    declare -p "$table" >/dev/null 2>&1 && TABLES+=("$table")
 done
 
 # The other direction: a directory that ships an rc file but that no platform offers is
