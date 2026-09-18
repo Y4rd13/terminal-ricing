@@ -157,7 +157,6 @@ SEL_SET_ZSH_DEFAULT=0
 
 # ── Terminal control ────────────────────────────────────────────
 
-BANNER_END_ROW=0
 CONTENT_START_ROW=0
 
 hide_cursor() { printf '\033[?25l'; }
@@ -245,7 +244,6 @@ draw_banner() {
     printf "  ${GRY}│${RST}  ${GRY}SYS${RST} ${WHT}%-12s${RST} ${GRY}SHELL${RST} ${WHT}%-8s${RST} ${GRY}HOME${RST} ${LIM}~/${RST}         ${GRY}│${RST}\n" "$DETECTED_OS" "$DETECTED_SHELL"
     echo -e "  ${GRY}└──────────────────────────────────────────────────────┘${RST}"
 
-    BANNER_END_ROW=15
     CONTENT_START_ROW=16
 }
 
@@ -397,7 +395,7 @@ prompt_multi_select() {
 
         local idx=0
         for entry in "${items_ref[@]}"; do
-            IFS=':' read -r key desc extra _ <<< "$entry"
+            IFS=':' read -r key desc _extra _ <<< "$entry"
             local mark="${GRY}○${RST}"
             [[ "${sel_ref[$key]:-0}" == "1" ]] && mark="${CYN}●${RST}"
 
@@ -640,7 +638,8 @@ step_dotfiles() {
     for entry in "${dotfiles_ref[@]}"; do
         IFS=':' read -r src target desc requires <<< "$entry"
         local expanded="${target/#\~/$HOME}"
-        local basename_src="$(basename "$src")"
+        local basename_src
+        basename_src="$(basename "$src")"
 
         # Check if required tool is installed
         local missing=""
