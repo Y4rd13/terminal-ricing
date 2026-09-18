@@ -92,18 +92,27 @@ report "ubuntu-wsl/.local/bin/browser-pick is not executable (deploy_dotfile sym
 # ── T3: the session-recall banner prints above the p10k instant prompt block ────
 # Powerlevel10k warns about any console output produced after the instant prompt
 # preamble, so a banner below it turns every new shell into a warning.
+# Every platform sources the p10k theme, so the constraint holds on all of them, not
+# only on WSL. sr itself is platform independent, so the banner belongs on all of them too.
 zshrc="$REPO/ubuntu-wsl/.zshrc"
-banner_line="$(grep -n 'sr banner' "$zshrc" | head -1 | cut -d: -f1)"
-instant_line="$(grep -n 'p10k-instant-prompt' "$zshrc" | head -1 | cut -d: -f1)"
 
-if [[ -z "$banner_line" ]]; then
-    ko "ubuntu-wsl/.zshrc does not call 'sr banner'"
-elif [[ -z "$instant_line" ]]; then
-    ko "ubuntu-wsl/.zshrc has no p10k instant prompt block to position the banner against"
-else
-    [[ "$banner_line" -lt "$instant_line" ]]
-    report "ubuntu-wsl/.zshrc calls 'sr banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
-fi
+for table in "${TABLES[@]}"; do
+    platform="$(platform_of "$table")"
+    candidate="$REPO/$platform/.zshrc"
+    [[ -f "$candidate" ]] || continue
+
+    banner_line="$(grep -n 'sr banner' "$candidate" | head -1 | cut -d: -f1)"
+    instant_line="$(grep -n 'p10k-instant-prompt' "$candidate" | head -1 | cut -d: -f1)"
+
+    if [[ -z "$banner_line" ]]; then
+        ko "$platform/.zshrc does not call 'sr banner'"
+    elif [[ -z "$instant_line" ]]; then
+        ko "$platform/.zshrc has no p10k instant prompt block to position the banner against"
+    else
+        [[ "$banner_line" -lt "$instant_line" ]]
+        report "$platform/.zshrc calls 'sr banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
+    fi
+done
 
 # ── T4: the shipped zshrc carries BROWSER, and no personal paths (public repo) ──
 grep -q '^export BROWSER=' "$zshrc"

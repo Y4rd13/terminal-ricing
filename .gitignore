@@ -1,0 +1,5 @@
+# zsh writes its completion cache next to the rc file, so pointing ZDOTDIR at a
+# platform directory (which is how the shipped configs get exercised) drops these
+# into the tree.
+.zcompdump*
+**/.zcompdump*
