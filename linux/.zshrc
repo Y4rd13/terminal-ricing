@@ -7,6 +7,11 @@ if command -v fastfetch &> /dev/null; then
       || echo "⚡ Fastfetch timeout — terminal listo"
 fi
 
+# session-recall: one line when Claude Code sessions were left open. No-op without `sr`.
+# Above the instant prompt for the same reason as fastfetch: p10k warns about anything
+# printed below its preamble.
+{ command -v sr >/dev/null 2>&1 && sr banner; } || true
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.

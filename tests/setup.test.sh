@@ -31,48 +31,51 @@ report() { [[ "$2" -eq 0 ]] && ok || ko "$1"; }
 
 # The arrays are plain bash literals, so the declarations can be lifted out of setup.sh
 # without sourcing it (sourcing would launch the wizard).
-eval "$(sed -n '/^DOTFILES_UBUNTU_WSL=(/,/^)/p; /^DOTFILES_LINUX=(/,/^)/p; /^DOTFILES_ARCH=(/,/^)/p' "$SETUP")"
+# PLATFORMS is the canonical list; deriving from it rather than hardcoding one here is
+# what makes a fourth platform visible to every check below instead of silently skipped.
+eval "$(sed -n '/^PLATFORMS=(/,/^)/p; /^DOTFILES_[A-Z_]*=(/,/^)/p' "$SETUP")"
 
-platform_table() {
-    case "$1" in
-        ubuntu-wsl) echo "DOTFILES_UBUNTU_WSL" ;;
-        linux) echo "DOTFILES_LINUX" ;;
-        arch) echo "DOTFILES_ARCH" ;;
-    esac
-}
+platform_table() { printf 'DOTFILES_%s\n' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
 
-platform_of() {
-    case "$1" in
-        DOTFILES_UBUNTU_WSL) echo "ubuntu-wsl" ;;
-        DOTFILES_LINUX) echo "linux" ;;
-        DOTFILES_ARCH) echo "arch" ;;
-    esac
-}
+# Guard before the expansion, not after: bash 4.4 and later expand an unset array to
+# nothing under `set -u`, but 3.2 aborts, and a suite that dies on its own parse failure
+# reports nothing at all.
+declare -p PLATFORMS >/dev/null 2>&1
+report "setup.sh declares no PLATFORMS at all (did the parse break?)" $?
 
-# Not every branch carries every platform, so work from the tables actually declared.
-TABLES=()
-for table in DOTFILES_UBUNTU_WSL DOTFILES_LINUX DOTFILES_ARCH; do
-    declare -p "$table" >/dev/null 2>&1 && TABLES+=("$table")
+PLATFORMS_KEYS=()
+if declare -p PLATFORMS >/dev/null 2>&1; then
+    for entry in "${PLATFORMS[@]}"; do
+        IFS=':' read -r key _label _desc <<< "$entry"
+        PLATFORMS_KEYS+=("$key")
+    done
+fi
+
+# ── T0: platforms, tables and directories do not drift apart ──────────────────
+for platform in "${PLATFORMS_KEYS[@]}"; do
+    table="$(platform_table "$platform")"
+
+    declare -p "$table" >/dev/null 2>&1
+    report "setup.sh offers platform $platform but declares no $table table" $?
+
+    [[ -d "$REPO/$platform" ]]
+    report "setup.sh offers platform $platform but $platform/ does not exist" $?
+
 done
 
-[[ "${#TABLES[@]}" -gt 0 ]]
-report "setup.sh declares no DOTFILES_* table at all (did the parse break?)" $?
-
-# ── T0: tables and platform directories do not drift apart ────────────────────
-for table in "${TABLES[@]}"; do
-    [[ -d "$REPO/$(platform_of "$table")" ]]
-    report "$table is declared but its platform directory $(platform_of "$table")/ does not exist" $?
-done
+# The other direction: a directory that ships an rc file but that no platform offers is
+# dead weight at best, and at worst a config nobody validates.
 for dir in "$REPO"/*/; do
     platform="$(basename "$dir")"
-    case "$platform" in ubuntu-wsl | linux | arch) ;; *) continue ;; esac
-    printf '%s\n' "${TABLES[@]}" | grep -qx "$(platform_table "$platform")"
-    report "$platform/ exists but setup.sh declares no $(platform_table "$platform") table" $?
+    [[ -f "$dir/.zshrc" ]] || continue
+    printf '%s\n' "${PLATFORMS_KEYS[@]}" | grep -qx "$platform"
+    report "$platform/.zshrc exists but setup.sh offers no $platform platform, so nothing checks it" $?
 done
 
 # ── T1: every source declared in a DOTFILES_* table exists on disk ──────────────
-for table in "${TABLES[@]}"; do
-    platform="$(platform_of "$table")"
+for platform in "${PLATFORMS_KEYS[@]}"; do
+    table="$(platform_table "$platform")"
+    declare -p "$table" >/dev/null 2>&1 || continue
     declare -n entries="$table"
     for entry in "${entries[@]}"; do
         IFS=':' read -r src _target _desc _requires <<< "$entry"
@@ -92,25 +95,32 @@ report "ubuntu-wsl/.local/bin/browser-pick is not executable (deploy_dotfile sym
 # ── T3: the session-recall banner prints above the p10k instant prompt block ────
 # Powerlevel10k warns about any console output produced after the instant prompt
 # preamble, so a banner below it turns every new shell into a warning.
+# Every platform sources the p10k theme, so the constraint holds on all of them, not
+# only on WSL. sr itself is platform independent, so the banner belongs on all of them too.
 zshrc="$REPO/ubuntu-wsl/.zshrc"
-banner_line="$(grep -n 'sr banner' "$zshrc" | head -1 | cut -d: -f1)"
-instant_line="$(grep -n 'p10k-instant-prompt' "$zshrc" | head -1 | cut -d: -f1)"
 
-if [[ -z "$banner_line" ]]; then
-    ko "ubuntu-wsl/.zshrc does not call 'sr banner'"
-elif [[ -z "$instant_line" ]]; then
-    ko "ubuntu-wsl/.zshrc has no p10k instant prompt block to position the banner against"
-else
-    [[ "$banner_line" -lt "$instant_line" ]]
-    report "ubuntu-wsl/.zshrc calls 'sr banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
-fi
+for platform in "${PLATFORMS_KEYS[@]}"; do
+    candidate="$REPO/$platform/.zshrc"
+    [[ -f "$candidate" ]] || continue
+
+    banner_line="$(grep -n 'sr banner' "$candidate" | head -1 | cut -d: -f1)"
+    instant_line="$(grep -n 'p10k-instant-prompt' "$candidate" | head -1 | cut -d: -f1)"
+
+    if [[ -z "$banner_line" ]]; then
+        ko "$platform/.zshrc does not call 'sr banner'"
+    elif [[ -z "$instant_line" ]]; then
+        ko "$platform/.zshrc has no p10k instant prompt block to position the banner against"
+    else
+        [[ "$banner_line" -lt "$instant_line" ]]
+        report "$platform/.zshrc calls 'sr banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
+    fi
+done
 
 # ── T4: the shipped zshrc carries BROWSER, and no personal paths (public repo) ──
 grep -q '^export BROWSER=' "$zshrc"
 report "ubuntu-wsl/.zshrc does not export BROWSER, so browser-pick is installed but never used" $?
 
-for table in "${TABLES[@]}"; do
-    platform="$(platform_of "$table")"
+for platform in "${PLATFORMS_KEYS[@]}"; do
     candidate="$REPO/$platform/.zshrc"
     if [[ ! -f "$candidate" ]]; then
         ko "$platform/.zshrc is missing, so it cannot be checked for hardcoded paths"

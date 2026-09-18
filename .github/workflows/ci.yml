@@ -1,0 +1,36 @@
+name: Validate
+
+# This repo ships dotfiles that get symlinked straight into a live shell, so a
+# regression here is not caught by a failing build: it is caught the next time
+# someone opens a terminal. The checks are therefore structural, and they are the
+# same ones tests/setup.test.sh runs locally.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: validate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  structure:
+    name: Dotfile tables and shipped configs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: shellcheck and setsid are present
+        run: |
+          # Both ship with ubuntu-latest; fail loudly rather than skip silently
+          # if that ever stops being true, since the suite degrades to SKIP.
+          command -v shellcheck
+          command -v setsid
+          command -v script
+      - name: tests/setup.test.sh
+        run: bash tests/setup.test.sh
