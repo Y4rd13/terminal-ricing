@@ -176,14 +176,14 @@ else
     printf 'SKIP: script(1) not installed, cannot test the pty case\n'
 fi
 
-# ── T5: shellcheck stays clean at error severity ────────────────────────────────
-# Warning severity has 3 pre-existing findings in setup.sh; errors are the gate.
+# ── T5: shellcheck stays clean at warning severity ──────────────────────────────
+# Every shell file the repo ships, this suite included, since a test that lints
+# everything except itself leaves one file where a defect can sit unread.
 if command -v shellcheck >/dev/null 2>&1; then
-    shellcheck -S error "$SETUP" >/dev/null 2>&1
-    report "shellcheck -S error reports problems in setup.sh" $?
-
-    shellcheck -S error "$REPO/ubuntu-wsl/.local/bin/browser-pick" >/dev/null 2>&1
-    report "shellcheck -S error reports problems in ubuntu-wsl/.local/bin/browser-pick" $?
+    for sh in "$SETUP" "$REPO/ubuntu-wsl/.local/bin/browser-pick" "${BASH_SOURCE[0]}"; do
+        shellcheck -S warning "$sh" >/dev/null 2>&1
+        report "shellcheck -S warning reports problems in ${sh#"$REPO/"}" $?
+    done
 else
     printf 'SKIP: shellcheck not installed\n'
 fi
