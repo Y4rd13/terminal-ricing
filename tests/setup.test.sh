@@ -92,27 +92,27 @@ report "DOTFILES_UBUNTU_WSL has no entry for .local/bin/browser-pick (script is 
 [[ -x "$REPO/ubuntu-wsl/.local/bin/browser-pick" ]]
 report "ubuntu-wsl/.local/bin/browser-pick is not executable (deploy_dotfile symlinks it, so the mode must live in the repo)" $?
 
-# ── T3: the session-recall banner prints above the p10k instant prompt block ────
+# ── T3: the seneca banner prints above the p10k instant prompt block ────────────
 # Powerlevel10k warns about any console output produced after the instant prompt
 # preamble, so a banner below it turns every new shell into a warning.
 # Every platform sources the p10k theme, so the constraint holds on all of them, not
-# only on WSL. sr itself is platform independent, so the banner belongs on all of them too.
+# only on WSL. seneca itself is platform independent, so the banner belongs on all of them too.
 zshrc="$REPO/ubuntu-wsl/.zshrc"
 
 for platform in "${PLATFORMS_KEYS[@]}"; do
     candidate="$REPO/$platform/.zshrc"
     [[ -f "$candidate" ]] || continue
 
-    banner_line="$(grep -n 'sr banner' "$candidate" | head -1 | cut -d: -f1)"
+    banner_line="$(grep -n 'seneca banner' "$candidate" | head -1 | cut -d: -f1)"
     instant_line="$(grep -n 'p10k-instant-prompt' "$candidate" | head -1 | cut -d: -f1)"
 
     if [[ -z "$banner_line" ]]; then
-        ko "$platform/.zshrc does not call 'sr banner'"
+        ko "$platform/.zshrc does not call 'seneca banner'"
     elif [[ -z "$instant_line" ]]; then
         ko "$platform/.zshrc has no p10k instant prompt block to position the banner against"
     else
         [[ "$banner_line" -lt "$instant_line" ]]
-        report "$platform/.zshrc calls 'sr banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
+        report "$platform/.zshrc calls 'seneca banner' at line $banner_line, below the instant prompt block at line $instant_line: p10k will warn on every shell" $?
     fi
 done
 

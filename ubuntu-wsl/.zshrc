@@ -2,8 +2,8 @@
 # Powerlevel10k buffers the console while zsh initializes: anything printed below the
 # preamble raises "Console output during zsh initialization detected" on every shell.
 
-# session-recall: one line when Claude Code sessions were left open. No-op without `sr`.
-{ command -v sr >/dev/null 2>&1 && sr banner; } || true
+# seneca: one line when Claude Code sessions were left open. No-op without `seneca`.
+{ command -v seneca >/dev/null 2>&1 && seneca banner; } || true
 
 # ---- Powerlevel10k instant prompt (must be near the top) ----
 # Any initialization that may require console input, or print anything, goes above this.
