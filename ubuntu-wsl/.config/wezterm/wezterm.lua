@@ -296,7 +296,9 @@ local function linux_cwd(pane)
   local distro = WSL_DISTRO:gsub('%p', '%%%0') -- 'Ubuntu-24.04': '-' y '.' son mágicos en patrones
   local p = url.file_path:gsub('^/wsl%.localhost/' .. distro, '')
                          :gsub('^/wsl%$/' .. distro, '')
-  if p:find('^/') then return p end -- solo rutas Linux; lo demás se descarta
+  -- solo rutas Linux; lo demás se descarta. Una ruta de Windows llega como /C:/Users/...
+  -- y también empieza con '/', por eso se excluye aparte.
+  if p:find('^/') and not p:find('^/%a:') then return p end
   return nil
 end
 
