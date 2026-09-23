@@ -526,12 +526,19 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+Shift+F` | Split pane horizontally |
-| `Cmd+Shift+D` | Split pane vertically |
-| `Cmd+Arrow` | Navigate between panes |
-| `Opt+Arrow` | Resize panes |
+| `Ctrl+Shift+T` | New tab |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
+| `Ctrl+Shift+1`..`9` | Jump to tab 1-8 (`9` = last) |
+| `Ctrl+Shift+PageUp` / `PageDown` | Move tab left / right |
+| `Ctrl+Shift+F` | Split pane horizontally |
+| `Ctrl+Shift+D` | Split pane vertically |
+| `Ctrl+Shift+Y` | Split pane horizontally running tmux (`main` session) |
+| `Ctrl+Arrow` | Navigate between panes |
+| `Alt+Arrow` | Resize panes |
 | `Ctrl+Shift+Z` | Zoom/unzoom pane |
-| `Cmd+Shift+W` | Close current pane |
+| `Ctrl+Shift+W` | Close current pane |
+| `Ctrl+Shift+R` | Reload config |
+| `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout now (autosaves every 60s) |
 
 ### tmux
 
