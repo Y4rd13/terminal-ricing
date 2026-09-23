@@ -3,7 +3,8 @@
 # preamble raises "Console output during zsh initialization detected" on every shell.
 
 # seneca: one line when Claude Code sessions were left open. No-op without `seneca`.
-{ command -v seneca >/dev/null 2>&1 && seneca banner; } || true
+# Looked up by hand as well: ~/.local/bin only reaches PATH further down this file.
+() { local seneca=${commands[seneca]:-$HOME/.local/bin/seneca}; [[ -x $seneca ]] && $seneca banner; } || true
 
 # ---- Powerlevel10k instant prompt (must be near the top) ----
 # Any initialization that may require console input, or print anything, goes above this.

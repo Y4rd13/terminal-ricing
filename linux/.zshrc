@@ -10,7 +10,8 @@ fi
 # seneca: one line when Claude Code sessions were left open. No-op without `seneca`.
 # Above the instant prompt for the same reason as fastfetch: p10k warns about anything
 # printed below its preamble.
-{ command -v seneca >/dev/null 2>&1 && seneca banner; } || true
+# Looked up by hand as well: ~/.local/bin only reaches PATH further down this file.
+() { local seneca=${commands[seneca]:-$HOME/.local/bin/seneca}; [[ -x $seneca ]] && $seneca banner; } || true
 
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]

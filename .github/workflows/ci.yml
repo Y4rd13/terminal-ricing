@@ -25,12 +25,17 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: shellcheck and setsid are present
+      - name: zsh is installed
+        # ubuntu-latest does not ship zsh, and T3b runs the real banner line in it.
+        run: sudo apt-get install -y --no-install-recommends zsh
+      - name: shellcheck, setsid, script and zsh are present
         run: |
-          # Both ship with ubuntu-latest; fail loudly rather than skip silently
-          # if that ever stops being true, since the suite degrades to SKIP.
+          # shellcheck, setsid and script ship with ubuntu-latest, zsh comes from the
+          # step above; fail loudly rather than skip silently if any goes missing,
+          # since the suite degrades to SKIP.
           command -v shellcheck
           command -v setsid
           command -v script
+          command -v zsh
       - name: tests/setup.test.sh
         run: bash tests/setup.test.sh
