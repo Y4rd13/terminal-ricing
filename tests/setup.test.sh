@@ -116,6 +116,33 @@ for platform in "${PLATFORMS_KEYS[@]}"; do
     fi
 done
 
+# ── T3b: the banner finds seneca before .zshrc has put ~/.local/bin on PATH ────
+# The banner has to run above the instant prompt block, and every .zshrc adds
+# ~/.local/bin to PATH much further down. On WSL ~/.zshenv happens to add it first,
+# but this repo does not ship a .zshenv, so on a fresh Arch or Linux `command -v`
+# would miss it and the banner would stay silent. Run the real line with a PATH
+# that lacks ~/.local/bin and a stub seneca there.
+if command -v zsh >/dev/null 2>&1; then
+    banner_home="$(mktemp -d)"
+    mkdir -p "$banner_home/.local/bin"
+    printf '#!/bin/sh\necho "stub $1"\n' > "$banner_home/.local/bin/seneca"
+    chmod +x "$banner_home/.local/bin/seneca"
+    for platform in "${PLATFORMS_KEYS[@]}"; do
+        candidate="$REPO/$platform/.zshrc"
+        [[ -f "$candidate" ]] || continue
+        line="$(grep 'seneca banner' "$candidate" | head -1)"
+        out="$(env -i HOME="$banner_home" PATH=/usr/bin:/bin zsh -f -c "$line" 2>&1)"
+        [[ "$out" == "stub banner" ]]
+        report "$platform/.zshrc banner does not find ~/.local/bin/seneca off PATH (got: $out)" $?
+        out="$(env -i HOME="$banner_home/none" PATH=/usr/bin:/bin zsh -f -c "$line; echo rc=\$?" 2>&1)"
+        [[ "$out" == "rc=0" ]]
+        report "$platform/.zshrc banner is not a silent no-op without seneca (got: $out)" $?
+    done
+    rm -rf "$banner_home"
+else
+    printf 'SKIP: zsh not installed, cannot run the banner line\n'
+fi
+
 # ── T4: the shipped zshrc carries BROWSER, and no personal paths (public repo) ──
 grep -q '^export BROWSER=' "$zshrc"
 report "ubuntu-wsl/.zshrc does not export BROWSER, so browser-pick is installed but never used" $?
