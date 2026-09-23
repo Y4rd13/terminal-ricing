@@ -279,8 +279,8 @@ table.insert(config.keys, {
 })
 
 -- =========================================================
--- 6) Persistencia de layout: guarda cada 60s qué ventanas/splits hay
---    y la carpeta de cada uno; al abrir WezTerm lo reconstruye.
+-- 6) Persistencia de layout: guarda qué ventanas/splits hay y la carpeta
+--    de cada uno. Autoguardado y restauración al abrir: apagados (ver gui-startup).
 --    Ctrl+Space s -> guardar ahora   |   Ctrl+Space r -> restaurar ahora
 -- Requiere el OSC 7 del .zshrc (sin él no se conocen las carpetas).
 -- =========================================================
@@ -293,14 +293,18 @@ local STATE = wezterm.home_dir .. '/.wezterm-layout.json' -- C:\Users\<usuario>\
 local function linux_cwd(pane)
   local url = pane:get_current_working_dir()
   if not url or not url.file_path then return nil end
-  local p = url.file_path:gsub('^/wsl%.localhost/' .. WSL_DISTRO, '')
-                         :gsub('^/wsl%$/' .. WSL_DISTRO, '')
+  local distro = WSL_DISTRO:gsub('%p', '%%%0') -- 'Ubuntu-24.04': '-' y '.' son mágicos en patrones
+  local p = url.file_path:gsub('^/wsl%.localhost/' .. distro, '')
+                         :gsub('^/wsl%$/' .. distro, '')
   if p:find('^/') then return p end -- solo rutas Linux; lo demás se descarta
   return nil
 end
 
 local function prog_in(dir)
-  if dir then return { 'bash', '-lc', 'cd "' .. dir .. '" && exec zsh -l' } end
+  if dir then -- comillas simples: bash no interpreta el nombre de la carpeta
+    local quoted = "'" .. dir:gsub("'", "'\\''") .. "'"
+    return { 'bash', '-lc', 'cd ' .. quoted .. ' && exec zsh -l' }
+  end
   return nil -- sin carpeta conocida: default_prog (zsh en ~)
 end
 

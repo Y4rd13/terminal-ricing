@@ -93,7 +93,7 @@ Copy-Item "\\wsl$\Ubuntu\home\YOUR_USERNAME\projects\terminal-ricing\ubuntu-wsl\
 
 ## 4. Install Nerd Fonts
 
-Nerd Fonts must be installed on **Windows** (since WezTerm runs there).
+The shipped `wezterm.lua` only uses fonts bundled with WezTerm, so this step is optional for WezTerm. Install a Nerd Font if you switch fonts or use another terminal; it must be installed on **Windows** (since WezTerm runs there).
 
 1. Download **JetBrains Mono Nerd Font** from [nerdfonts.com/font-downloads](https://www.nerdfonts.com/font-downloads)
 2. Extract the zip
@@ -376,15 +376,15 @@ The `p10k` command only exists after `.zshrc` sources PowerLevel10k.
 
 Nerd Fonts are not installed or WezTerm isn't using them.
 
-1. Install JetBrains Mono Nerd Font **on Windows** ([step 4](#4-install-nerd-fonts))
-2. Verify WezTerm config has the correct font:
+1. The shipped `wezterm.lua` uses fonts bundled with WezTerm itself, so no install is needed for WezTerm. Verify the config still has:
    ```lua
    config.font = wezterm.font_with_fallback {
-     'JetBrainsMono Nerd Font',
-     'Fira Code',
-     'monospace',
+     'JetBrains Mono',
+     'Symbols Nerd Font Mono',
+     'Noto Color Emoji',
    }
    ```
+2. If you changed it to another font, install that Nerd Font **on Windows** ([step 4](#4-install-nerd-fonts))
 3. Restart WezTerm after installing fonts
 
 ### `fastfetch: command not found` after `sudo apt install fastfetch`
@@ -538,7 +538,7 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 | `Ctrl+Shift+Z` | Zoom/unzoom pane |
 | `Ctrl+Shift+W` | Close current pane |
 | `Ctrl+Shift+R` | Reload config |
-| `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout now (autosaves every 60s) |
+| `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout (manual only, no autosave) |
 
 ### tmux
 
