@@ -13,6 +13,8 @@
 local config_path = assert(arg[1], 'usage: wezterm-keys.test.lua <wezterm.lua>')
 
 local handlers = {}
+local plugin_loaded, before_plugin = false, {}
+local live_panes = {}
 
 -- act.X is both a value (act.TogglePaneZoomState) and a constructor (act.SpawnTab '...').
 local action = setmetatable({}, {
@@ -38,7 +40,12 @@ package.loaded.wezterm = {
   json_encode = function() return '' end,
   json_parse = function() return nil end,
   log_info = function() end,
-  mux = { all_windows = function() return {} end, spawn_window = function() end },
+  mux = {
+    all_windows = function() return {} end,
+    spawn_window = function() end,
+    -- A pane closed while its help was open is gone from the mux.
+    get_pane = function(id) if live_panes[id] then return { pane_id = function() return id end } end end,
+  },
   GLOBAL = {},
   -- A Nerd Font glyph is one cell wide; the stub gives each name its own one-cell
   -- private-use character, so row widths add up and a test can look for a given glyph.
@@ -51,8 +58,17 @@ package.loaded.wezterm = {
       return glyph
     end,
   }),
-  on = function(event, fn) handlers[event] = fn end,
-  plugin = { require = function() return { apply_to_config = function() end } end },
+  -- Records which handlers exist before the tab-bar plugin loads: WezTerm runs only the
+  -- first format-tab-title handler, so ours must come before bar.wezterm's.
+  on = function(event, fn)
+    handlers[event] = fn
+    if not plugin_loaded then before_plugin[event] = true end
+  end,
+  plugin = { require = function()
+    plugin_loaded = true
+    return { apply_to_config = function() end }
+  end },
+  truncate_right = function(s, n) return s:sub(1, n) end,
   time = { call_after = function() end },
 }
 
@@ -64,7 +80,7 @@ local DEFAULT_LANG = "local HELP_LANG = 'en'"
 
 -- Loads the config with HELP_LANG set to `lang`; returns the config and its event handlers.
 local function load_config(lang)
-  handlers = {}
+  handlers, plugin_loaded, before_plugin = {}, false, {}
   local src = source:gsub(DEFAULT_LANG, "local HELP_LANG = '" .. lang .. "'", 1)
   local chunk = assert((loadstring or load)(src, '@' .. config_path))
   return chunk(), handlers
@@ -92,8 +108,9 @@ local function check(cond, msg)
   end
 end
 
-local function fake_window(overrides)
+local function fake_window(overrides, id)
   local w = { performed = {}, overrides = overrides }
+  function w:window_id() return id or 1 end
   -- A nil action would be lost by table.insert and look like "nothing performed".
   function w:perform_action(a, _) table.insert(self.performed, a == nil and 'nil action' or a) end
   function w:get_config_overrides() return self.overrides end
@@ -102,8 +119,13 @@ local function fake_window(overrides)
 end
 
 local PANE_COLS = 120
-local function fake_pane()
-  return { get_dimensions = function() return { cols = PANE_COLS } end }
+local function fake_pane(id, cols)
+  id = id or 1
+  live_panes[id] = true
+  return {
+    get_dimensions = function() return { cols = cols or PANE_COLS } end,
+    pane_id = function() return id end,
+  }
 end
 
 -- Display width of a plain label: one cell per UTF-8 character (icons and arrows included).
@@ -319,6 +341,85 @@ if help then
   end
 end
 
+-- The opacity survives two helps open at once and a pane closed with its help still open:
+-- the value from before the first help comes back once the last one is gone.
+if f1 then
+  local w = fake_window({ window_background_opacity = 0.6 }, 7)
+  local p1, p2 = fake_pane(11), fake_pane(12)
+  f1.action.fn(w, p1)
+  f1.action.fn(w, p2)
+  local first, second = w.performed[1], w.performed[2]
+  second.arg.action.fn(w, p2, nil, nil)
+  check(near(w.overrides.window_background_opacity, 1.0), 'closing one of two open helps made the window translucent')
+  first.arg.action.fn(w, p1, nil, nil)
+  check(near(w.overrides.window_background_opacity, 0.6), 'closing both helps did not restore 0.6, got '
+    .. tostring(w.overrides.window_background_opacity))
+
+  local p3 = fake_pane(13)
+  f1.action.fn(w, p3)
+  live_panes[13] = nil
+  local status = handlers['update-status']
+  check(status ~= nil, 'no update-status handler to notice a pane closed with its help open')
+  if status then status(w, fake_pane(14)) end
+  check(near(w.overrides.window_background_opacity, 0.6),
+    'closing a pane with its help open left the window at ' .. tostring(w.overrides.window_background_opacity))
+end
+
+-- A narrow pane still gets rows of one width that fit it, each runnable one with its mark.
+if f1 then
+  local w = fake_window()
+  f1.action.fn(w, fake_pane(21, 50))
+  local narrow = w.performed[1] and w.performed[1].arg
+  local RET = package.loaded.wezterm.nerdfonts.md_keyboard_return
+  local first_width
+  for _, c in ipairs(narrow and narrow.choices or {}) do
+    local text = plain(c.label)
+    local cw = width(text)
+    first_width = first_width or cw
+    check(cw == first_width and cw <= 50, 'in a 50-column pane row ' .. c.id .. ' is ' .. cw .. ' cells wide')
+    if c.id:find('|', 1, true) then
+      check(text:find(RET, 1, true) ~= nil, 'in a 50-column pane row ' .. c.id .. ' lost its Enter mark')
+    end
+  end
+end
+
+-- Tab titles change colour under the mouse. bar.wezterm ignores the hover flag, and WezTerm
+-- runs only the first format-tab-title handler, so the config registers its own before the
+-- plugin loads, keeping the plugin's "N <icon> title" layout.
+check(before_plugin['format-tab-title'] == true, 'format-tab-title is not registered before bar.wezterm loads')
+local fmt = handlers['format-tab-title']
+if fmt then
+  local conf = {
+    tab_max_width = 28,
+    resolved_palette = { tab_bar = {
+      active_tab = { bg_color = 'active-bg', fg_color = 'active-fg' },
+      inactive_tab = { bg_color = 'idle-bg', fg_color = 'idle-fg' },
+      inactive_tab_hover = { bg_color = 'hover-bg', fg_color = 'hover-fg' },
+    } },
+  }
+  local function tab(index, active, pane_title, tab_title)
+    return { tab_index = index, is_active = active, tab_title = tab_title or '',
+             active_pane = { title = pane_title } }
+  end
+  local function colours(items) return items[1].Background.Color, items[2].Foreground.Color end
+  local function text(items) return items[3].Text end
+  local icon = package.loaded.wezterm.nerdfonts.pl_right_hard_divider
+
+  local bg, fg = colours(fmt(tab(1, false, 'zsh'), {}, {}, conf, true, 28))
+  check(bg == 'hover-bg' and fg == 'hover-fg', 'a hovered inactive tab does not use inactive_tab_hover')
+  bg, fg = colours(fmt(tab(1, false, 'zsh'), {}, {}, conf, false, 28))
+  check(bg == 'idle-bg' and fg == 'idle-fg', 'an inactive tab does not use inactive_tab')
+  bg, fg = colours(fmt(tab(1, true, 'zsh'), {}, {}, conf, true, 28))
+  check(bg == 'active-bg' and fg == 'active-fg', 'the active tab changes colour under the mouse')
+
+  local t = text(fmt(tab(2, false, '/home/me/notes.md'), {}, {}, conf, false, 28))
+  check(t == '3 ' .. icon .. ' notes  ', 'tab title is not "N <icon> basename": ' .. t)
+  t = text(fmt(tab(0, false, 'x', 'My tab'), {}, {}, conf, false, 28))
+  check(t == '1 ' .. icon .. ' My tab  ', 'an explicit tab title is not used: ' .. t)
+  t = text(fmt(tab(0, false, string.rep('a', 60)), {}, {}, conf, false, 28))
+  check(t:find('…', 1, true) ~= nil and #t < 60, 'a long tab title is not truncated: ' .. t)
+end
+
 -- The tab-bar button is shown, a left click opens the help and suppresses the new tab.
 check(config.show_new_tab_button_in_tab_bar == true, 'the tab-bar button is hidden')
 local click = handlers['new-tab-button-click']
@@ -355,6 +456,9 @@ if help and es_help then
       'entry ' .. c.id .. ' reads the same in both languages: ' .. plain(c.label))
   end
   check(plain(help.fuzzy_description) ~= plain(es_help.fuzzy_description), 'the search line is not translated')
+  local es_tabs
+  for _, c in ipairs(es_help.choices) do if c.id == 'header:tabs' then es_tabs = plain(c.label) end end
+  check(es_tabs and es_tabs:find('PESTAÑAS', 1, true), 'the Spanish Tabs header does not read PESTAÑAS: ' .. tostring(es_tabs))
 end
 
 local function button_text(cfg) return plain((cfg.tab_bar_style or {}).new_tab) end

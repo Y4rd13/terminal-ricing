@@ -1,5 +1,35 @@
 -- WEZTERM (Windows) + WSL (Ubuntu) - Config ajustada
 local wezterm = require 'wezterm'
+
+-- Títulos de pestaña con color al pasar el mouse. WezTerm usa solo el primer handler de
+-- format-tab-title, y bar.wezterm (cargado abajo) ignora el hover, así que este va antes
+-- del plugin. Copia su formato "N <separador> título" (bar.wezterm 89ef9bb): si el plugin
+-- cambia cómo dibuja las pestañas, hay que actualizar esto.
+wezterm.on('format-tab-title', function(tab, _, _, conf, hover)
+  local palette = conf.resolved_palette.tab_bar
+  local index = tostring(tab.tab_index + 1)
+  local icon = wezterm.nerdfonts.pl_right_hard_divider
+  local name = tab.tab_title
+  if not name or #name == 0 then
+    name = (tab.active_pane.title:match('[^/\\]*$') or ''):gsub('%.%w+$', '')
+  end
+  local title = index .. ' ' .. icon .. ' ' .. name
+  if #title > conf.tab_max_width then
+    title = wezterm.truncate_right(title, conf.tab_max_width - (#index + #icon + 4)) .. '…'
+  end
+  local colors = palette.inactive_tab
+  if tab.is_active then
+    colors = palette.active_tab
+  elseif hover then
+    colors = palette.inactive_tab_hover
+  end
+  return {
+    { Background = { Color = colors.bg_color } },
+    { Foreground = { Color = colors.fg_color } },
+    { Text = title .. '  ' },
+  }
+end)
+
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm") -- bar.wezterm plugin :contentReference[oaicite:1]{index=1}
 local act = wezterm.action
 
@@ -214,8 +244,9 @@ config.colors.tab_bar.inactive_tab.fg_color = '#6272a4'
 
 -- Hover: “lift” sutil
 config.colors.tab_bar.inactive_tab_hover = config.colors.tab_bar.inactive_tab_hover or {}
-config.colors.tab_bar.inactive_tab_hover.bg_color = '#2a2c37'
-config.colors.tab_bar.inactive_tab_hover.fg_color = '#f8f8f2'
+-- Hover: fondo entre inactiva y activa, texto en el morado de acento (botón Keys, marcas de Enter)
+config.colors.tab_bar.inactive_tab_hover.bg_color = '#343746'
+config.colors.tab_bar.inactive_tab_hover.fg_color = '#bd93f9'
 
 -- Nuevo tab: acento morado dracula
 config.colors.tab_bar.new_tab = config.colors.tab_bar.new_tab or {}
@@ -465,13 +496,14 @@ local HELP_GROUPS = {
   zsh     = { icon = wezterm.nerdfonts.cod_terminal,      color = '#8be9fd' },
 }
 
--- Secciones de la ayuda, en este orden; cada entrada de KEYMAP dice a cuál va.
+-- Secciones de la ayuda, en este orden; cada entrada de KEYMAP dice a cuál va. Los títulos
+-- van ya en mayúsculas: upper() de Lua trabaja por bytes y dejaría "PESTAñAS".
 local HELP_SECTIONS = {
-  { id = 'help',  title = { en = 'Help & config',    es = 'Ayuda y config' } },
-  { id = 'tabs',  title = { en = 'Tabs',             es = 'Pestañas' } },
-  { id = 'panes', title = { en = 'Panes & layout',   es = 'Paneles y layout' } },
-  { id = 'tmux',  title = { en = 'tmux · reference', es = 'tmux · referencia' } },
-  { id = 'zsh',   title = { en = 'zsh · reference',  es = 'zsh · referencia' } },
+  { id = 'help',  title = { en = 'HELP & CONFIG',    es = 'AYUDA Y CONFIG' } },
+  { id = 'tabs',  title = { en = 'TABS',             es = 'PESTAÑAS' } },
+  { id = 'panes', title = { en = 'PANES & LAYOUT',   es = 'PANELES Y LAYOUT' } },
+  { id = 'tmux',  title = { en = 'TMUX · REFERENCE', es = 'TMUX · REFERENCIA' } },
+  { id = 'zsh',   title = { en = 'ZSH · REFERENCE',  es = 'ZSH · REFERENCIA' } },
 }
 
 -- Filas compactas (hasta 80 columnas) para que la marca de Enter quede cerca del texto.
@@ -481,6 +513,18 @@ local RET = wezterm.nerdfonts.md_keyboard_return
 -- Ancho en celdas: un carácter UTF-8 por celda (íconos Nerd Font incluidos).
 local function cells(s) return select(2, s:gsub('[^\128-\191]', '')) end
 local function pad(s, n) return s .. string.rep(' ', n - cells(s)) end
+
+-- Recorta a n celdas con "…" (en paneles angostos), sin partir un carácter UTF-8.
+local function fit(s, n)
+  if cells(s) <= n then return s end
+  local out, used = {}, 0
+  for ch in s:gmatch('[\1-\127\194-\244][\128-\191]*') do
+    if used == n - 1 then break end
+    table.insert(out, ch)
+    used = used + 1
+  end
+  return table.concat(out) .. '…'
+end
 
 -- Las filas de WezTerm terminan en la marca de Enter; las de tmux y zsh van tenues y sin
 -- marca (su título ya dice que son de referencia), igual que un rango como Ctrl+Shift+1..9.
@@ -493,14 +537,14 @@ local function help_row(k, row_cols)
   return wezterm.format {
     { Foreground = { Color = g.color } }, { Text = ' ' .. g.icon .. '  ' },
     { Foreground = { Color = k.group == 'wezterm' and '#c0c4d6' or '#6272a4' } },
-    { Attribute = { Intensity = 'Bold' } }, { Text = pad(k.keys, KEYS_COLS) },
+    { Attribute = { Intensity = 'Bold' } }, { Text = pad(fit(k.keys, KEYS_COLS), KEYS_COLS) },
     { Attribute = { Intensity = 'Normal' } },
-    { Text = pad(tr(k.desc), desc_cols) .. ' ' .. (runnable and RET or ' ') .. ' ' },
+    { Text = pad(fit(tr(k.desc), desc_cols), desc_cols) .. ' ' .. (runnable and RET or ' ') .. ' ' },
   }
 end
 
 local function help_header(section, row_cols)
-  local text = ' ── ' .. tr(section.title):upper() .. ' '
+  local text = ' ── ' .. tr(section.title) .. ' '
   return wezterm.format {
     { Foreground = { Color = '#6272a4' } }, { Attribute = { Intensity = 'Bold' } },
     { Text = text .. string.rep('─', row_cols - cells(text) - 1) .. ' ' },
@@ -516,6 +560,40 @@ local function set_opacity(window, value)
   window:set_config_overrides(overrides)
 end
 
+-- Por ventana: la opacidad de antes de la primera ayuda y los paneles con una ayuda
+-- abierta. Se restaura cuando se cierra la última, aunque haya dos abiertas a la vez.
+local help_open = {}
+
+local function help_opened(window, pane)
+  local state = help_open[window:window_id()]
+  if not state then
+    state = { before = (window:get_config_overrides() or {}).window_background_opacity, panes = {} }
+    help_open[window:window_id()] = state
+    set_opacity(window, 1.0)
+  end
+  state.panes[pane:pane_id()] = true
+end
+
+local function help_closed(window, pane_id)
+  local state = help_open[window:window_id()]
+  if not state then return end
+  state.panes[pane_id] = nil
+  if next(state.panes) == nil then
+    help_open[window:window_id()] = nil
+    set_opacity(window, state.before)
+  end
+end
+
+-- Un panel cerrado con la ayuda abierta nunca llama al callback: update-status (cada
+-- segundo) lo nota porque el panel ya no existe, y lo da por cerrado.
+wezterm.on('update-status', function(window)
+  local state = help_open[window:window_id()]
+  if not state then return end
+  for id in pairs(state.panes) do
+    if not wezterm.mux.get_pane(id) then help_closed(window, id) end
+  end
+end)
+
 local function show_help(window, pane)
   local row_cols = math.max(40, math.min(80, pane:get_dimensions().cols - 8))
   local choices, run, entries = {}, {}, 0
@@ -530,8 +608,7 @@ local function show_help(window, pane)
       end
     end
   end
-  local opacity_before = (window:get_config_overrides() or {}).window_background_opacity
-  set_opacity(window, 1.0)
+  help_opened(window, pane)
   window:perform_action(act.InputSelector {
     -- Título de la pestaña temporal: distinto del botón "Keys" para no verlo dos veces.
     title = wezterm.nerdfonts.md_keyboard .. ' ' .. tr { en = 'Help', es = 'Ayuda' },
@@ -542,7 +619,7 @@ local function show_help(window, pane)
       es = 'Buscar entre %d atajos  ·  %s ejecuta los de WezTerm  ·  Esc cierra: ',
     }, entries, RET),
     action = wezterm.action_callback(function(win, p, id)
-      set_opacity(win, opacity_before)
+      help_closed(win, pane:pane_id())
       if id and run[id] then win:perform_action(run[id], p) end
     end),
   }, pane)

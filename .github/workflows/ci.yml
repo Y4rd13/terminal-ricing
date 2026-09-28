@@ -28,7 +28,7 @@ jobs:
       - name: zsh and lua5.4 are installed
         # ubuntu-latest does not ship zsh, and T3b runs the real banner line in it.
         # lua5.4 is for T7, which loads wezterm.lua against a stubbed wezterm module.
-        run: sudo apt-get install -y --no-install-recommends zsh lua5.4
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends zsh lua5.4
       - name: shellcheck, setsid, script, zsh and lua5.4 are present
         run: |
           # shellcheck, setsid and script ship with ubuntu-latest, zsh and lua5.4 come
