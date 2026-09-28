@@ -1013,12 +1013,13 @@ end
 
 local EDITOR = ({ code = 'code', nvim = 'nvim', micro = 'micro' })[SETTINGS.editor] or 'nvim'
 
--- Corre un comando en la distro sin shell de login (~0,15 s medido), con el argv como
--- lista: no hay comillas que escapar. Devuelve si salió bien y la salida.
+-- Corre un comando en la distro sin pasar por una shell (~0,15 s medido). --exec y no --:
+-- después de -- wsl.exe entrega la línea a la shell de Linux, que expandiría $(...) de una
+-- ruta. Devuelve si salió bien y la salida.
 local function wsl(dir, args)
   local argv = { 'wsl.exe', '-d', WSL_DISTRO }
   if dir then table.insert(argv, '--cd'); table.insert(argv, dir) end
-  table.insert(argv, '--')
+  table.insert(argv, '--exec')
   for _, a in ipairs(args) do table.insert(argv, a) end
   local called, ok, out = pcall(wezterm.run_child_process, argv)
   return called and ok, (called and out) or ''
@@ -1038,6 +1039,12 @@ end
 local function links_toast(window, msg) window:toast_notification('WezTerm', msg, nil, 4000) end
 
 local function open_in_editor(window, pane, path, line)
+  -- Un link OSC 8 puede apuntar a cualquier edit:, así que solo pasan rutas con letras,
+  -- dígitos, punto, guion, guion bajo y barra: nada que una shell interprete.
+  if not path:match('^[%w%./_%-]+$') then
+    links_toast(window, string.format(tr { en = 'Cannot open %s', es = 'No se puede abrir %s' }, path))
+    return
+  end
   local abs = path
   if path:sub(1, 1) ~= '/' then
     local dir = linux_cwd(pane)
@@ -1053,7 +1060,10 @@ local function open_in_editor(window, pane, path, line)
     return
   end
   if EDITOR == 'code' then
-    wezterm.background_child_process { 'wsl.exe', '-d', WSL_DISTRO, '--', 'code', '-g', abs .. ':' .. line }
+    -- code solo está en el PATH que arma la shell: sh -c, con la ruta como argumento $1,
+    -- que sh no interpreta.
+    wezterm.background_child_process { 'wsl.exe', '-d', WSL_DISTRO, '--exec', 'sh', '-c', 'exec code -g "$1"', 'sh',
+                                       abs .. ':' .. line }
   else
     -- Login: nvim puede vivir en ~/.local/bin. Al salir del editor el split se cierra.
     pane:split { direction = 'Right', domain = WSL,
@@ -1105,4 +1115,4 @@ for _, k in ipairs(KEYMAP) do
   end
 end
 
-return config
+return config

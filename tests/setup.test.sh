@@ -286,6 +286,32 @@ if declare -F valid_jira >/dev/null; then
     done
 fi
 
+# A rejected Jira site is asked again, not dropped with a warning the next screen clears,
+# and an empty site skips Jira. The prompts are stubbed with queued answers.
+eval "$(sed -n '/^step_links() {/,/^}/p' "$SETUP")"
+if declare -F step_links >/dev/null && declare -F valid_jira >/dev/null; then
+    section_header() { :; }
+    warn() { :; }
+    dimm() { :; }
+    detect_link_editors() { printf 'nvim\n'; }
+    prompt_yn() { return 0; }
+    prompt_text() { REPLY="${answers[0]:-}"; answers=("${answers[@]:1}"); }
+    # shellcheck disable=SC2034  # read by the eval'd step_links
+    SELECTED_PLATFORM=ubuntu-wsl
+    answers=("http://x.atlassian.net" "FTK" "https://x.atlassian.net" "FTK")
+    SEL_JIRA_URL="" SEL_JIRA_PROJECTS=""
+    step_links < /dev/null
+    [[ "$SEL_JIRA_URL" == "https://x.atlassian.net" && "$SEL_JIRA_PROJECTS" == "FTK" ]]
+    report "a rejected Jira site was not asked again (got '$SEL_JIRA_URL' '$SEL_JIRA_PROJECTS')" $?
+    answers=("")
+    SEL_JIRA_URL="" SEL_JIRA_PROJECTS=""
+    step_links < /dev/null
+    [[ -z "$SEL_JIRA_URL" && -z "$SEL_JIRA_PROJECTS" ]]
+    report "an empty Jira site did not skip Jira" $?
+else
+    ko "setup.sh defines no step_links to drive"
+fi
+
 grep -q '^    step_links$' "$SETUP"
 report "cmd_configure never calls step_links" $?
 grep -q 'merge_wezterm_settings "\$settings_file"' "$SETUP"

@@ -787,16 +787,24 @@ step_links() {
     fi
 
     if prompt_yn "Make Jira keys clickable?" "Asks for your Jira site and project prefixes; saved outside this repo"; then
-        prompt_text "Jira site (e.g. https://your-site.atlassian.net):"
-        local url="$REPLY"
-        prompt_text "Project prefixes, comma-separated (e.g. ABC,OPS):"
-        local projects="${REPLY// /}"
-        if valid_jira "$url" "$projects"; then
-            SEL_JIRA_URL="$url"
-            SEL_JIRA_PROJECTS="$projects"
-        else
-            warn "Not an https site or upper-case prefixes: Jira links skipped"
-        fi
+        # Asked again until valid: a warning alone would be cleared by the next screen.
+        local url projects
+        while true; do
+            prompt_text "Jira site (e.g. https://your-site.atlassian.net), empty to skip:"
+            url="${REPLY// /}"
+            if [[ -z "$url" ]]; then
+                dimm "Jira links skipped"
+                break
+            fi
+            prompt_text "Project prefixes, comma-separated (e.g. ABC,OPS):"
+            projects="${REPLY// /}"
+            if valid_jira "$url" "$projects"; then
+                SEL_JIRA_URL="$url"
+                SEL_JIRA_PROJECTS="$projects"
+                break
+            fi
+            warn "Needs an https:// site and upper-case prefixes like ABC. Try again."
+        done
     fi
 }
 

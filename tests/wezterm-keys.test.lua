@@ -793,7 +793,8 @@ do
     child_calls, opened = {}, {}
     child_answer = function(argv)
       local i = 1
-      while argv[i] and argv[i] ~= '--' do i = i + 1 end
+      -- --exec, never --: after -- wsl.exe hands the line to the Linux shell, which expands it.
+      while argv[i] and argv[i] ~= '--exec' do i = i + 1 end
       if argv[i + 1] == 'git' then
         if remote then return true, remote .. '\n', '' end
         return false, '', 'fatal: not a git repository'
@@ -859,8 +860,11 @@ do
       'micro: wrong command ' .. tostring(p.splits[1] and p.splits[1].args[3]))
     ret, w, p = edit("{ editor = 'code' }", 'edit:/etc/x.conf:9', nil, { ['/etc/x.conf'] = true })
     local last = child_calls[#child_calls]
-    check(ret == false and #p.splits == 0 and last and last[5] == 'code' and last[6] == '-g' and last[7] == '/etc/x.conf:9',
-      'code: file:line did not run code -g /etc/x.conf:9')
+    -- code is only on the PATH the shell builds, so it runs through sh -c with the path as
+    -- a positional argument, which sh never parses.
+    check(ret == false and #p.splits == 0 and last and last[4] == '--exec' and last[5] == 'sh'
+      and last[7] == 'exec code -g "$1"' and last[9] == '/etc/x.conf:9',
+      'code: file:line did not run code -g /etc/x.conf:9 through sh -c')
     for _, literal in ipairs({ '{}', "{ editor = 'vim' }", "{ editor = { 'code' } }" }) do
       ret, w, p = edit(literal, 'edit:a.lua:1', '/p', { ['/p/a.lua'] = true })
       check(p.splits[1] and p.splits[1].args[3]:find('^exec nvim ') ~= nil,
@@ -871,9 +875,13 @@ do
       'a missing file opened or gave no toast naming it')
     ret, w, p = edit("{ editor = 'nvim' }", 'edit:a.lua:3', nil, { ['/p/a.lua'] = true })
     check(#p.splits == 0 and #w.toasts == 1, 'a relative path with no known folder opened something')
-    ret, w, p = edit("{ editor = 'nvim' }", "edit:it's.lua:1", '/p', { ["/p/it's.lua"] = true })
-    check(p.splits[1] and p.splits[1].args[3] == [[exec nvim +1 '/p/it'\''s.lua']],
-      'a quote in the path is not escaped for bash: ' .. tostring(p.splits[1] and p.splits[1].args[3]))
+    -- An OSC 8 hyperlink can point anywhere: a path with shell syntax reaches neither WSL nor
+    -- the editor, only a toast.
+    for _, hostile in ipairs({ 'edit:/tmp/x$(touch pwned).lua:1', 'edit:a`id`.lua:2', "edit:/p/a;rm -rf ~.lua:3", "edit:it's.lua:1" }) do
+      ret, w, p = edit("{ editor = 'code' }", hostile, '/p', {})
+      check(ret == false and #child_calls == 0 and #p.splits == 0 and #w.toasts == 1,
+        'the hostile link ' .. hostile .. ' reached WSL or gave no toast')
+    end
     answer(nil)
     check(handlers['open-uri'](toast_window(), link_pane('/p'), 'https://example.com') == nil,
       'a normal URL no longer reaches the default browser action')
