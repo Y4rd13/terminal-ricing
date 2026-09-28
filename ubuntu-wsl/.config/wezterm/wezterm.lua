@@ -1,7 +1,38 @@
 -- WEZTERM (Windows) + WSL (Ubuntu) - Config ajustada
 local wezterm = require 'wezterm'
 
--- Títulos de pestaña con color al pasar el mouse. WezTerm usa solo el primer handler de
+-- Estado de Claude Code en la pestaña, minimalista: solo el glifo del estado y el separador
+-- de la pestaña toman el color; el fondo y el nombre quedan como siempre. Claude pone un
+-- glifo al inicio del título: ◐ ◑ ◒ ◓ (o un spinner braille) mientras trabaja, ✳ cuando
+-- espera tu mensaje. Con un diálogo de permiso abierto el título se queda con el spinner,
+-- así que "te necesita" llega aparte: un hook de Claude Code (claude-config) pone la
+-- variable de panel claude_state = waiting.
+-- Colores de estado universales (como un semáforo o el estado de un CI), un color por estado:
+--   te necesita           -> campana roja en lugar del glifo
+--   trabajando            -> glifo amarillo; la animación es el propio ◐/◑ que Claude alterna
+--   ✳ con salida sin ver  -> punto verde, en pestañas que no estás mirando
+--   ✳                     -> gris tenue
+local CLAUDE_COLORS = { waiting = '#ff5555', working = '#f1fa8c', done = '#50fa7b', idle = '#6272a4' }
+local CLAUDE_SPINNER = { ['◐'] = true, ['◑'] = true, ['◒'] = true, ['◓'] = true }
+
+local function claude_state(tab)
+  local pane = tab.active_pane
+  local glyph = (pane.title or ''):match('^(\226[\128-\191][\128-\191]) ')
+  if (pane.user_vars or {}).claude_state == 'waiting' then
+    return { color = CLAUDE_COLORS.waiting, mark = wezterm.nerdfonts.md_bell_ring }, glyph
+  end
+  if not glyph then return nil end
+  if CLAUDE_SPINNER[glyph] or glyph:match('^\226[\160-\163]') then -- braille U+2800-28FF
+    return { color = CLAUDE_COLORS.working, mark = glyph }, glyph
+  end
+  if glyph == '✳' then
+    if pane.has_unseen_output and not tab.is_active then return { color = CLAUDE_COLORS.done, mark = '•' }, glyph end
+    return { mark = glyph, mark_color = CLAUDE_COLORS.idle }, glyph -- idle: solo el ✳ tenue
+  end
+  return nil
+end
+
+-- Títulos de pestaña con estado de Claude y color al pasar el mouse. WezTerm usa solo el primer handler de
 -- format-tab-title, y bar.wezterm (cargado abajo) ignora el hover, así que este va antes
 -- del plugin. Copia su formato "N <separador> título" (bar.wezterm 89ef9bb): si el plugin
 -- cambia cómo dibuja las pestañas, hay que actualizar esto.
@@ -13,9 +44,16 @@ wezterm.on('format-tab-title', function(tab, _, _, conf, hover)
   if not name or #name == 0 then
     name = (tab.active_pane.title:match('[^/\\]*$') or ''):gsub('%.%w+$', '')
   end
-  local title = index .. ' ' .. icon .. ' ' .. name
-  if #title > conf.tab_max_width then
-    title = wezterm.truncate_right(title, conf.tab_max_width - (#index + #icon + 4)) .. '…'
+  local state, glyph = claude_state(tab)
+  local mark = ''
+  if state then
+    mark = state.mark
+    if glyph and name:sub(1, #glyph + 1) == glyph .. ' ' then name = name:sub(#glyph + 2) end
+  end
+  local prefix = index .. ' ' .. icon .. ' '
+  local rest = (mark ~= '' and (mark .. ' ') or '') .. name
+  if #(prefix .. rest) > conf.tab_max_width then
+    rest = wezterm.truncate_right(rest, conf.tab_max_width - (#index + #icon + 4)) .. '…'
   end
   local colors = palette.inactive_tab
   if tab.is_active then
@@ -23,11 +61,20 @@ wezterm.on('format-tab-title', function(tab, _, _, conf, hover)
   elseif hover then
     colors = palette.inactive_tab_hover
   end
-  return {
+  local base = colors.fg_color
+  local items = {
     { Background = { Color = colors.bg_color } },
-    { Foreground = { Color = colors.fg_color } },
-    { Text = title .. '  ' },
+    { Foreground = { Color = base } }, { Text = index .. ' ' },
+    { Foreground = { Color = (state and state.color) or base } }, { Text = icon .. ' ' },
   }
+  if mark ~= '' and rest:sub(1, #mark) == mark then
+    table.insert(items, { Foreground = { Color = state.color or state.mark_color } })
+    table.insert(items, { Text = mark })
+    rest = rest:sub(#mark + 1)
+  end
+  table.insert(items, { Foreground = { Color = base } })
+  table.insert(items, { Text = rest .. '  ' })
+  return items
 end)
 
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm") -- bar.wezterm plugin :contentReference[oaicite:1]{index=1}
