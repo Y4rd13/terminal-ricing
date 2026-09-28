@@ -526,7 +526,7 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 
 | Shortcut | Action |
 |----------|--------|
-| `F1` or click `[?]` in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one) |
+| `F1` or click the **Keys** button in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one). English by default; set `HELP_LANG = 'es'` at the top of `wezterm.lua` for Spanish |
 | `Ctrl+Shift+T` | New tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+1`..`9` | Jump to tab 1-8 (`9` = last) |

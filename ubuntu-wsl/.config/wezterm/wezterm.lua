@@ -5,6 +5,9 @@ local act = wezterm.action
 
 local config = wezterm.config_builder()
 
+-- Idioma de la ayuda de atajos (F1 y botón de la barra): 'en' o 'es'
+local HELP_LANG = 'en'
+
 -- =========================================================
 -- OPTIMIZACIONES
 -- =========================================================
@@ -95,9 +98,8 @@ config.enable_tab_bar = true
 config.use_fancy_tab_bar = false
 config.hide_tab_bar_if_only_one_tab = false
 config.show_tab_index_in_tab_bar = false
--- El botón de "nueva pestaña" se muestra como [?] y abre la ayuda de atajos (ver sección 7)
+-- El botón de "nueva pestaña" pasa a ser el de la ayuda de atajos (ver sección 7)
 config.show_new_tab_button_in_tab_bar = true
-config.tab_bar_style = { new_tab = ' ? ', new_tab_hover = ' ? ' }
 config.tab_max_width = 28
 
 -- Scrollbar ON (usa el padding derecho)
@@ -230,9 +232,10 @@ config.colors.tab_bar.new_tab_hover.fg_color = '#f8f8f2'
 --
 -- Todos los atajos van en KEYMAP, nunca directo en config.keys: de esta lista salen
 -- config.keys y la ayuda de F1 (sección 7), así que un atajo nuevo aparece en la ayuda
--- solo. Campos: grupo, cómo se escribe el atajo, qué hace, y key/mods/action para
--- WezTerm. Una entrada sin key solo se muestra en la ayuda (tmux, zsh, rangos).
--- tests/wezterm-keys.test.lua falla si un atajo queda fuera de la ayuda.
+-- solo. Campos: grupo, cómo se escribe el atajo, qué hace en inglés y en español
+-- (HELP_LANG elige), y key/mods/action para WezTerm. Una entrada sin key solo se
+-- muestra en la ayuda (tmux, zsh, rangos).
+-- tests/wezterm-keys.test.lua falla si un atajo queda fuera de la ayuda o sin traducir.
 -- =========================================================
 local function wez(keys, desc, key, mods, action)
   return { group = 'wezterm', keys = keys, desc = desc, key = key, mods = mods, action = action }
@@ -240,38 +243,54 @@ end
 
 local KEYMAP = {
   -- Pestañas (mismos atajos que trae WezTerm, declarados para que salgan en la ayuda)
-  wez('Ctrl+Tab',             'Pestaña siguiente',            'Tab',      'CTRL',       act.ActivateTabRelative(1)),
-  wez('Ctrl+Shift+Tab',       'Pestaña anterior',             'Tab',      'CTRL|SHIFT', act.ActivateTabRelative(-1)),
-  wez('Ctrl+Shift+PageUp',    'Mover pestaña a la izquierda', 'PageUp',   'CTRL|SHIFT', act.MoveTabRelative(-1)),
-  wez('Ctrl+Shift+PageDown',  'Mover pestaña a la derecha',   'PageDown', 'CTRL|SHIFT', act.MoveTabRelative(1)),
-  { group = 'wezterm', keys = 'Ctrl+Shift+1..9', desc = 'Ir a la pestaña 1-8 (9 = última)' },
+  wez('Ctrl+Tab', { en = 'Next tab', es = 'Pestaña siguiente' },
+    'Tab', 'CTRL', act.ActivateTabRelative(1)),
+  wez('Ctrl+Shift+Tab', { en = 'Previous tab', es = 'Pestaña anterior' },
+    'Tab', 'CTRL|SHIFT', act.ActivateTabRelative(-1)),
+  wez('Ctrl+Shift+PageUp', { en = 'Move tab left', es = 'Mover pestaña a la izquierda' },
+    'PageUp', 'CTRL|SHIFT', act.MoveTabRelative(-1)),
+  wez('Ctrl+Shift+PageDown', { en = 'Move tab right', es = 'Mover pestaña a la derecha' },
+    'PageDown', 'CTRL|SHIFT', act.MoveTabRelative(1)),
+  { group = 'wezterm', keys = 'Ctrl+Shift+1..9',
+    desc = { en = 'Go to tab 1-8 (9 = last)', es = 'Ir a la pestaña 1-8 (9 = última)' } },
 
   -- Splits
-  wez('Ctrl+Shift+F', 'Dividir panel en horizontal', 'f', 'CTRL|SHIFT',
-    act.SplitHorizontal { domain = 'CurrentPaneDomain' }),
-  wez('Ctrl+Shift+D', 'Dividir panel en vertical', 'd', 'CTRL|SHIFT',
-    act.SplitVertical { domain = 'CurrentPaneDomain' }),
+  wez('Ctrl+Shift+F', { en = 'Split pane horizontally', es = 'Dividir panel en horizontal' },
+    'f', 'CTRL|SHIFT', act.SplitHorizontal { domain = 'CurrentPaneDomain' }),
+  wez('Ctrl+Shift+D', { en = 'Split pane vertically', es = 'Dividir panel en vertical' },
+    'd', 'CTRL|SHIFT', act.SplitVertical { domain = 'CurrentPaneDomain' }),
 
   -- Cambiar entre paneles
-  wez('Ctrl+Left',  'Ir al panel de la izquierda', 'LeftArrow',  'CTRL', act.ActivatePaneDirection 'Left'),
-  wez('Ctrl+Right', 'Ir al panel de la derecha',   'RightArrow', 'CTRL', act.ActivatePaneDirection 'Right'),
-  wez('Ctrl+Up',    'Ir al panel de arriba',       'UpArrow',    'CTRL', act.ActivatePaneDirection 'Up'),
-  wez('Ctrl+Down',  'Ir al panel de abajo',        'DownArrow',  'CTRL', act.ActivatePaneDirection 'Down'),
+  wez('Ctrl+Left', { en = 'Go to the pane on the left', es = 'Ir al panel de la izquierda' },
+    'LeftArrow', 'CTRL', act.ActivatePaneDirection 'Left'),
+  wez('Ctrl+Right', { en = 'Go to the pane on the right', es = 'Ir al panel de la derecha' },
+    'RightArrow', 'CTRL', act.ActivatePaneDirection 'Right'),
+  wez('Ctrl+Up', { en = 'Go to the pane above', es = 'Ir al panel de arriba' },
+    'UpArrow', 'CTRL', act.ActivatePaneDirection 'Up'),
+  wez('Ctrl+Down', { en = 'Go to the pane below', es = 'Ir al panel de abajo' },
+    'DownArrow', 'CTRL', act.ActivatePaneDirection 'Down'),
 
   -- Zoom del panel
-  wez('Ctrl+Shift+Z', 'Zoom del panel (activar/quitar)', 'z', 'CTRL|SHIFT', act.TogglePaneZoomState),
+  wez('Ctrl+Shift+Z', { en = 'Zoom the pane in or out', es = 'Zoom del panel (activar/quitar)' },
+    'z', 'CTRL|SHIFT', act.TogglePaneZoomState),
 
   -- Redimensionar paneles
-  wez('Alt+Left',  'Mover el borde del panel a la izquierda', 'LeftArrow',  'OPT', act.AdjustPaneSize { 'Left',  5 }),
-  wez('Alt+Right', 'Mover el borde del panel a la derecha', 'RightArrow', 'OPT', act.AdjustPaneSize { 'Right', 5 }),
-  wez('Alt+Up',    'Mover el borde del panel hacia arriba', 'UpArrow',    'OPT', act.AdjustPaneSize { 'Up',    5 }),
-  wez('Alt+Down',  'Mover el borde del panel hacia abajo', 'DownArrow',  'OPT', act.AdjustPaneSize { 'Down',  5 }),
+  wez('Alt+Left', { en = 'Move the pane border left', es = 'Mover el borde del panel a la izquierda' },
+    'LeftArrow', 'OPT', act.AdjustPaneSize { 'Left', 5 }),
+  wez('Alt+Right', { en = 'Move the pane border right', es = 'Mover el borde del panel a la derecha' },
+    'RightArrow', 'OPT', act.AdjustPaneSize { 'Right', 5 }),
+  wez('Alt+Up', { en = 'Move the pane border up', es = 'Mover el borde del panel hacia arriba' },
+    'UpArrow', 'OPT', act.AdjustPaneSize { 'Up', 5 }),
+  wez('Alt+Down', { en = 'Move the pane border down', es = 'Mover el borde del panel hacia abajo' },
+    'DownArrow', 'OPT', act.AdjustPaneSize { 'Down', 5 }),
 
   -- Cerrar panel
-  wez('Ctrl+Shift+W', 'Cerrar el panel actual', 'w', 'CTRL|SHIFT', act.CloseCurrentPane { confirm = true }),
+  wez('Ctrl+Shift+W', { en = 'Close the current pane', es = 'Cerrar el panel actual' },
+    'w', 'CTRL|SHIFT', act.CloseCurrentPane { confirm = true }),
 
   -- 4) Atajo para recargar config
-  wez('Ctrl+Shift+R', 'Recargar la config', 'r', 'CTRL|SHIFT', act.ReloadConfiguration),
+  wez('Ctrl+Shift+R', { en = 'Reload the config', es = 'Recargar la config' },
+    'r', 'CTRL|SHIFT', act.ReloadConfiguration),
 }
 
 config.inactive_pane_hsb = {
@@ -280,8 +299,9 @@ config.inactive_pane_hsb = {
 }
 
 -- Split con tmux en el pane actual (Ctrl+Shift+Y; la T quedó para nueva pestaña)
-table.insert(KEYMAP, wez('Ctrl+Shift+Y', 'Dividir en horizontal con tmux (sesión main)', 'Y', 'CTRL|SHIFT',
-  act.SplitHorizontal {
+table.insert(KEYMAP, wez('Ctrl+Shift+Y',
+  { en = 'Split horizontally running tmux (session main)', es = 'Dividir en horizontal con tmux (sesión main)' },
+  'Y', 'CTRL|SHIFT', act.SplitHorizontal {
     domain = 'CurrentPaneDomain',
     args = { 'tmux', 'new-session', '-A', '-s', 'main' },
   }))
@@ -408,59 +428,96 @@ if false and not wezterm.GLOBAL.layout_autosave then -- 2026-09-16: apagado, ver
   wezterm.time.call_after(60, tick)
 end
 
-table.insert(KEYMAP, wez('Ctrl+Space s', 'Guardar el layout de paneles', 's', 'LEADER',
-  wezterm.action_callback(function() save_layout() end)))
-table.insert(KEYMAP, wez('Ctrl+Space r', 'Restaurar el layout guardado', 'r', 'LEADER',
-  wezterm.action_callback(function() restore_layout() end)))
+table.insert(KEYMAP, wez('Ctrl+Space s', { en = 'Save the pane layout', es = 'Guardar el layout de paneles' },
+  's', 'LEADER', wezterm.action_callback(function() save_layout() end)))
+table.insert(KEYMAP, wez('Ctrl+Space r', { en = 'Restore the saved layout', es = 'Restaurar el layout guardado' },
+  'r', 'LEADER', wezterm.action_callback(function() restore_layout() end)))
 
 -- Nueva pestaña: Ctrl+Shift+T
-table.insert(KEYMAP, wez('Ctrl+Shift+T', 'Nueva pestaña', 'T', 'CTRL|SHIFT',
-  act.SpawnTab 'CurrentPaneDomain'))
+table.insert(KEYMAP, wez('Ctrl+Shift+T', { en = 'New tab', es = 'Nueva pestaña' },
+  'T', 'CTRL|SHIFT', act.SpawnTab 'CurrentPaneDomain'))
 
 -- =========================================================
--- 7) Ayuda de atajos: F1, o click en el [?] de la barra de pestañas
+-- 7) Ayuda de atajos: F1, o click en el botón "Keys"/"Atajos" de la barra de pestañas
 --    Lista KEYMAP con búsqueda fuzzy. Enter sobre un atajo de WezTerm lo ejecuta;
 --    sobre uno de tmux o zsh solo cierra, porque WezTerm no puede dispararlos.
 -- =========================================================
+local function tr(t) return t[HELP_LANG] or t.en end
+
 local function info(group, keys, desc) return { group = group, keys = keys, desc = desc } end
 
 for _, k in ipairs({
-  info('tmux', 'Ctrl+a |', 'Dividir en horizontal'),
-  info('tmux', 'Ctrl+a -', 'Dividir en vertical'),
-  info('tmux', 'Ctrl+a I', 'Instalar plugins (TPM)'),
-  info('zsh',  'Ctrl+F',   'Aceptar la sugerencia'),
-  info('zsh',  'Ctrl+R',   'Buscar en el historial (fzf)'),
-  info('zsh',  'Ctrl+T',   'Buscar archivo (fzf)'),
-  info('zsh',  'Alt+C',    'Entrar a un directorio (fzf)'),
+  info('tmux', 'Ctrl+a |', { en = 'Split horizontally', es = 'Dividir en horizontal' }),
+  info('tmux', 'Ctrl+a -', { en = 'Split vertically', es = 'Dividir en vertical' }),
+  info('tmux', 'Ctrl+a I', { en = 'Install plugins (TPM)', es = 'Instalar plugins (TPM)' }),
+  info('zsh',  'Ctrl+F',   { en = 'Accept the suggestion', es = 'Aceptar la sugerencia' }),
+  info('zsh',  'Ctrl+R',   { en = 'Search history (fzf)', es = 'Buscar en el historial (fzf)' }),
+  info('zsh',  'Ctrl+T',   { en = 'Find a file (fzf)', es = 'Buscar archivo (fzf)' }),
+  info('zsh',  'Alt+C',    { en = 'Jump into a directory (fzf)', es = 'Entrar a un directorio (fzf)' }),
 }) do
   table.insert(KEYMAP, k)
 end
 
+-- Colores Dracula: un ícono y un color por grupo; el atajo en rosa, la descripción en gris.
+local HELP_GROUPS = {
+  wezterm = { icon = wezterm.nerdfonts.dev_terminal,      color = '#bd93f9' },
+  tmux    = { icon = wezterm.nerdfonts.cod_terminal_tmux, color = '#50fa7b' },
+  zsh     = { icon = wezterm.nerdfonts.cod_terminal,      color = '#8be9fd' },
+}
+
 local function show_help(window, pane)
   local choices, run = {}, {}
   for i, k in ipairs(KEYMAP) do
-    local id = k.key and (k.key .. '|' .. (k.mods or '')) or ('info:' .. i)
+    local id = k.key and (k.key .. '|' .. (k.mods or '')) or (k.group .. ':' .. i)
+    local g = HELP_GROUPS[k.group]
     run[id] = k.action
     table.insert(choices, {
       id = id,
-      label = string.format('%-10s %-20s %s', '[' .. k.group .. ']', k.keys, k.desc),
+      label = wezterm.format {
+        { Foreground = { Color = g.color } }, { Text = ' ' .. g.icon .. '  ' },
+        { Foreground = { Color = '#ff79c6' } }, { Attribute = { Intensity = 'Bold' } },
+        { Text = string.format('%-22s', k.keys) },
+        'ResetAttributes',
+        { Foreground = { Color = '#c0c4d6' } }, { Text = tr(k.desc) },
+      },
     })
   end
   window:perform_action(act.InputSelector {
-    title = 'Atajos',
+    title = tr { en = 'Keys', es = 'Atajos' },
     choices = choices,
     fuzzy = true,
-    fuzzy_description = 'Buscar atajo (Enter ejecuta los de WezTerm, Esc cierra): ',
+    fuzzy_description = wezterm.nerdfonts.md_keyboard .. '  ' .. tr {
+      en = 'Search keys (Enter runs WezTerm ones, Esc closes): ',
+      es = 'Buscar atajo (Enter ejecuta los de WezTerm, Esc cierra): ',
+    },
     action = wezterm.action_callback(function(win, p, id)
       if id and run[id] then win:perform_action(run[id], p) end
     end),
   }, pane)
 end
 
-table.insert(KEYMAP, 1, wez('F1', 'Mostrar esta ayuda', 'F1', nil, wezterm.action_callback(show_help)))
+table.insert(KEYMAP, 1, wez('F1', { en = 'Show this help', es = 'Mostrar esta ayuda' },
+  'F1', nil, wezterm.action_callback(show_help)))
 
--- Click izquierdo en [?]: la ayuda en vez de una pestaña nueva (esa sigue en Ctrl+Shift+T).
--- El click derecho conserva lo que hace WezTerm por defecto.
+-- El botón: cápsula morada con ícono de teclado, rosa al pasar el mouse. El fondo de los
+-- bordes redondeados es el de las pestañas inactivas, para que calce con la barra.
+local function help_button(bg)
+  local bar_bg = '#1e1f29'
+  return wezterm.format {
+    { Background = { Color = bar_bg } }, { Text = ' ' },
+    { Foreground = { Color = bg } }, { Text = wezterm.nerdfonts.ple_left_half_circle_thick },
+    { Background = { Color = bg } }, { Foreground = { Color = '#282a36' } },
+    { Attribute = { Intensity = 'Bold' } },
+    { Text = wezterm.nerdfonts.md_keyboard .. ' ' .. tr { en = 'Keys', es = 'Atajos' } },
+    'ResetAttributes',
+    { Background = { Color = bar_bg } }, { Foreground = { Color = bg } },
+    { Text = wezterm.nerdfonts.ple_right_half_circle_thick },
+  }
+end
+config.tab_bar_style = { new_tab = help_button('#bd93f9'), new_tab_hover = help_button('#ff79c6') }
+
+-- Click izquierdo en el botón: la ayuda en vez de una pestaña nueva (esa sigue en
+-- Ctrl+Shift+T). El click derecho conserva lo que hace WezTerm por defecto.
 wezterm.on('new-tab-button-click', function(window, pane, button)
   if button ~= 'Left' then return end
   show_help(window, pane)

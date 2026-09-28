@@ -4,7 +4,8 @@
 -- the real help and the real click handler run; only the GUI calls are recorded instead
 -- of performed. What it guards: F1 and the tab-bar button open the help, every binding in
 -- config.keys is listed in it (a binding added outside KEYMAP would be missing), Enter on
--- a WezTerm entry runs that binding, and Enter on a tmux or zsh entry does nothing.
+-- a WezTerm entry runs that binding, and Enter on a tmux or zsh entry does nothing. The
+-- help is English by default and fully translated to Spanish (HELP_LANG = 'es').
 --
 -- Run: lua5.4 tests/wezterm-keys.test.lua <path-to-wezterm.lua>   (or: nvim -l ...)
 -- Prints one FAIL line per broken check and ends with "N passed" or "N passed, M failed".
@@ -45,7 +46,31 @@ package.loaded.wezterm = {
   time = { call_after = function() end },
 }
 
-local config = dofile(config_path)
+local f = assert(io.open(config_path, 'r'))
+local source = f:read('*a')
+f:close()
+
+local DEFAULT_LANG = "local HELP_LANG = 'en'"
+
+-- Loads the config with HELP_LANG set to `lang`; returns the config and its event handlers.
+local function load_config(lang)
+  handlers = {}
+  local src = source:gsub(DEFAULT_LANG, "local HELP_LANG = '" .. lang .. "'", 1)
+  local chunk = assert((loadstring or load)(src, '@' .. config_path))
+  return chunk(), handlers
+end
+
+-- wezterm.format is stubbed as identity, so a styled label is its list of format items.
+local function plain(x)
+  if type(x) ~= 'table' then return tostring(x) end
+  local out = {}
+  for _, item in ipairs(x) do
+    if type(item) == 'table' and item.Text then table.insert(out, item.Text) end
+  end
+  return table.concat(out)
+end
+
+local config = load_config('en')
 
 local passed, failed = 0, 0
 local function check(cond, msg)
@@ -113,7 +138,7 @@ if help then
   for _, group in ipairs({ 'tmux', 'zsh' }) do
     local found
     for _, c in ipairs(help.choices) do
-      if c.label:find('[' .. group .. ']', 1, true) then found = c end
+      if c.id:sub(1, #group + 1) == group .. ':' then found = c end
     end
     check(found ~= nil, 'the help lists no [' .. group .. '] entry')
     if found then
@@ -143,6 +168,32 @@ if click then
   ret = click(w, {}, 'Right', action.ShowLauncher)
   check(#w.performed == 0 and ret ~= false, 'a right click no longer runs the default action')
 end
+
+-- English is the default, and every text in the help has its own Spanish version.
+local _, default_count = source:gsub(DEFAULT_LANG, '')
+check(default_count == 1, 'wezterm.lua does not set ' .. DEFAULT_LANG .. ' exactly once')
+
+local es = load_config('es')
+local es_f1
+for _, k in ipairs(es.keys or {}) do
+  if k.key == 'F1' then es_f1 = k end
+end
+local es_help = es_f1 and open_help(function(w) es_f1.action.fn(w, {}) end)
+check(es_help ~= nil, "F1 does not open the help with HELP_LANG = 'es'")
+
+if help and es_help then
+  check(plain(help.title) ~= plain(es_help.title), 'the help title is not translated')
+  check(#help.choices == #es_help.choices, 'the English and Spanish helps list different entries')
+  for i, c in ipairs(help.choices) do
+    local e = es_help.choices[i]
+    check(e and plain(c.label) ~= plain(e.label),
+      'entry ' .. c.id .. ' reads the same in both languages: ' .. plain(c.label))
+  end
+end
+
+local function button_text(cfg) return plain((cfg.tab_bar_style or {}).new_tab) end
+check(button_text(config):find('Keys', 1, true) ~= nil, 'the English tab-bar button does not say Keys')
+check(button_text(es):find('Atajos', 1, true) ~= nil, 'the Spanish tab-bar button does not say Atajos')
 
 if failed == 0 then
   io.write(passed, ' passed\n')
