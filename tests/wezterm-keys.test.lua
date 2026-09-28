@@ -16,6 +16,9 @@ local handlers = {}
 local plugin_loaded, before_plugin = false, {}
 local live_panes = {}
 local reloads = 0
+-- What the links handler asked WSL to run, the URLs it opened, and how the fake WSL answers.
+local child_calls, opened = {}, {}
+local child_answer = function() return false, '', '' end
 
 -- act.X is both a value (act.TogglePaneZoomState) and a constructor (act.SpawnTab '...').
 local action = setmetatable({}, {
@@ -33,6 +36,11 @@ package.loaded.wezterm = {
   action_callback = function(fn) return { kind = 'callback', fn = fn } end,
   config_builder = function() return {} end,
   default_wsl_domains = function() return {} end,
+  -- One marker rule stands for WezTerm's own URL rules, so a test can see they were kept.
+  default_hyperlink_rules = function() return { { regex = 'DEFAULT-RULE', format = '$0' } } end,
+  run_child_process = function(argv) table.insert(child_calls, argv); return child_answer(argv) end,
+  background_child_process = function(argv) table.insert(child_calls, argv) end,
+  open_with = function(url) table.insert(opened, url) end,
   font = identity,
   font_with_fallback = identity,
   format = identity,
@@ -641,6 +649,148 @@ do
 
   os.remove(file); os.execute('rmdir "' .. dir .. '"')
   W.home_dir = saved_home
+  load_config('en')
+end
+
+-- Clickable links: #N opens the PR or issue of the pane folder's GitHub repo, a Jira key
+-- opens the issue when ~/.wezterm-settings.json names the site and the prefixes, and
+-- file:line opens the editor chosen by setup.sh. Quick Select gets the same patterns.
+-- WezTerm's regexes are Rust ones; Python's re agrees with Rust regex on the subset used
+-- here (no lookaround, no backreferences), so samples are checked through python3.
+local links_dir = os.tmpname(); os.remove(links_dir); os.execute('mkdir -p "' .. links_dir .. '"')
+local links_file = links_dir .. '/.wezterm-settings.json'
+
+-- Loads the config with a settings file holding `literal` (the stub's json_parse runs Lua,
+-- so the file is a Lua table literal), or with no file when `literal` is nil.
+local function links_settings(literal)
+  local W = package.loaded.wezterm
+  W.home_dir = links_dir
+  if literal then
+    local f = io.open(links_file, 'w'); f:write('return ' .. literal); f:close()
+  else
+    os.remove(links_file)
+  end
+  return load_config('en')
+end
+
+-- For each sample, the sorted, space-separated links that `pairs_list` ({regex, format})
+-- make of it. nil when python3 is not installed.
+local function python_links(pairs_list, samples)
+  local status = os.execute('command -v python3 >/dev/null 2>&1')
+  if status ~= true and status ~= 0 then return nil end
+  local out = { 'import re', 'rules = [' }
+  for _, r in ipairs(pairs_list) do table.insert(out, string.format('(%q, %q),', r[1], r[2])) end
+  table.insert(out, ']')
+  table.insert(out, 'samples = [')
+  for _, s in ipairs(samples) do table.insert(out, string.format('%q,', s)) end
+  table.insert(out, ']')
+  for _, line in ipairs({
+    'for s in samples:',
+    '    found = set()',
+    '    for rx, fmt in rules:',
+    '        for m in re.finditer(rx, s):',
+    "            found.add(re.sub(r'\\$(\\d)', lambda d: m.group(int(d.group(1))) or '', fmt))",
+    "    print(' '.join(sorted(found)))",
+  }) do table.insert(out, line) end
+  local script = os.tmpname()
+  local f = io.open(script, 'w'); f:write(table.concat(out, '\n'), '\n'); f:close()
+  local p = io.popen('python3 ' .. script)
+  local results = {}
+  for line in p:lines() do table.insert(results, line) end
+  p:close(); os.remove(script)
+  return results
+end
+
+local function jira_rules(cfg)
+  local n = 0
+  for _, r in ipairs(cfg.hyperlink_rules or {}) do
+    if r.format:find('/browse/', 1, true) then n = n + 1 end
+  end
+  return n
+end
+
+do
+  local cfg = links_settings(nil)
+  local rules = cfg.hyperlink_rules or {}
+  check(rules[1] and rules[1].regex == 'DEFAULT-RULE', "WezTerm's own hyperlink rules were dropped")
+  local has = {}
+  for _, r in ipairs(rules) do has[r.format:match('^(%a+):') or ''] = true end
+  check(has.ghref and has.edit, 'no hyperlink rule for #N or file:line')
+  check(jira_rules(cfg) == 0, 'a Jira rule exists with no settings file')
+
+  for _, bad in ipairs({
+    "{ jira_url = 'https://x.atlassian.net' }",
+    "{ jira_projects = { 'FTK' } }",
+    "{ jira_url = '', jira_projects = { 'FTK' } }",
+    "{ jira_url = 'http://x.atlassian.net', jira_projects = { 'FTK' } }",
+    "{ jira_url = 'javascript:alert(1)', jira_projects = { 'FTK' } }",
+    "{ jira_url = 'https://x.atlassian.net', jira_projects = {} }",
+    "{ jira_url = 'https://x.atlassian.net', jira_projects = { 'ftk' } }",
+    "{ jira_url = 'https://x.atlassian.net', jira_projects = { 'FTK|.*' } }",
+    "{ jira_url = 'https://x.atlassian.net', jira_projects = { 'FTK', 5 } }",
+    "{ jira_url = 'https://x.atlassian.net', jira_projects = 'FTK' }",
+  }) do
+    check(jira_rules(links_settings(bad)) == 0, 'incomplete or invalid Jira settings still made a rule: ' .. bad)
+  end
+
+  local jcfg = links_settings("{ jira_url = 'https://x.atlassian.net/', jira_projects = { 'FTK', 'OPS' } }")
+  check(jira_rules(jcfg) == 1, 'valid Jira settings made no Jira rule')
+  check(#(cfg.quick_select_patterns or {}) == 2 and #(jcfg.quick_select_patterns or {}) == 3,
+    'Quick Select does not get #N and file:line, plus the Jira keys when they are set')
+
+  for _, p in ipairs(jcfg.quick_select_patterns or {}) do
+    check(not (p:gsub('%(%?:', '')):find('(', 1, true), 'Quick Select pattern has a capture group: ' .. p)
+  end
+  for _, r in ipairs(jcfg.hyperlink_rules or {}) do
+    for _, look in ipairs({ '(?=', '(?!', '(?<=', '(?<!' }) do
+      check(not r.regex:find(look, 1, true), 'hyperlink rule uses lookaround, which Rust regex rejects: ' .. r.regex)
+    end
+  end
+
+  local function own(c)
+    local out = {}
+    for _, r in ipairs(c.hyperlink_rules or {}) do
+      if r.regex ~= 'DEFAULT-RULE' then table.insert(out, { r.regex, r.format }) end
+    end
+    return out
+  end
+  local cases = {
+    { 'see #21 now', 'ghref:21' },
+    { '(#7)', 'ghref:7' },
+    { 'color #ff5555', '' },
+    { 'a#12', '' },
+    { '#1234567', '' },
+    { 'src/app.ts:42', 'edit:src/app.ts:42' },
+    { 'error at ./a/b.py:7:3: boom', 'edit:./a/b.py:7:3' },
+    { "'/home/me/x.lua:10'", 'edit:/home/me/x.lua:10' },
+    { 'http://localhost.dev:8080/x', '' },
+    { 'listen 127.0.0.1:8080', '' },
+    { 'at 10:30', '' },
+    { 'Makefile:3', '' },
+    { 'fix FTK-12 and OPS-3', 'https://x.atlassian.net/browse/FTK-12 https://x.atlassian.net/browse/OPS-3' },
+    { 'UTF-8 and XFTK-12', '' },
+  }
+  local samples = {}
+  for _, c in ipairs(cases) do table.insert(samples, c[1]) end
+  local got = python_links(own(jcfg), samples)
+  if got then
+    for i, c in ipairs(cases) do
+      check(got[i] == c[2], 'links in "' .. c[1] .. '": expected "' .. c[2] .. '", got "' .. tostring(got[i]) .. '"')
+    end
+    local plain_got = python_links(own(cfg), { 'fix FTK-12' })
+    check(plain_got[1] == '', 'with no Jira settings FTK-12 is still a link: ' .. tostring(plain_got[1]))
+    local qs = {}
+    for _, p in ipairs(jcfg.quick_select_patterns or {}) do table.insert(qs, { p, 'qs:$0' }) end
+    local qs_got = python_links(qs, { 'see #21 in src/a.ts:3 for FTK-9' })
+    check(qs_got[1] == 'qs:#21 qs:FTK-9 qs:src/a.ts:3', 'Quick Select marks ' .. tostring(qs_got[1]))
+  else
+    io.write('SKIP: python3 not installed, link regexes not checked against samples\n')
+  end
+
+  -- (Tasks 2 and 3 add their checks above this line.)
+  -- Back to no settings file and the default config: the checks below read `handlers`.
+  os.remove(links_file); os.execute('rmdir "' .. links_dir .. '"')
+  package.loaded.wezterm.home_dir = '/nonexistent'
   load_config('en')
 end
 

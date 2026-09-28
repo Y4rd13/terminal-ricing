@@ -971,6 +971,43 @@ wezterm.on('update-status', function(window)
   claude_seen = seen -- solo los paneles que siguen vivos
 end)
 
+-- =========================================================
+-- 9) Links clickeables y Quick Select. Click en:
+--    #N          -> PR o issue N del repo de GitHub de la carpeta del panel
+--    FTK-123     -> la tarea en Jira. URL y prefijos van en ~/.wezterm-settings.json
+--                   (jira_url, jira_projects), que escribe setup.sh: el repo es público.
+--    a/b.ts:42   -> el editor elegido en setup.sh (editor: code, nvim o micro)
+-- Las reglas son regex de Rust: sin lookaround. Los patrones de Quick Select van sin
+-- grupos de captura, porque WezTerm los une todos en una sola regex.
+-- =========================================================
+-- Ruta con extensión (que empieza con letra, así 127.0.0.1:8080 no calza), :línea y
+-- opcionalmente :columna. En la regla de click además va precedida de inicio de línea,
+-- espacio, paréntesis o comilla, para no calzar dentro de una URL (host.dev:8080).
+local FILE_REGEX = [==[[\w./-]*\.[A-Za-z][A-Za-z0-9]*:\d+(?::\d+)?\b]==]
+
+-- Regex y formato de la regla de Jira, o nil si los ajustes faltan o no validan. Los
+-- prefijos se validan antes de ir a la regex: solo mayúsculas y dígitos.
+local function jira_rule()
+  local url, projects = SETTINGS.jira_url, SETTINGS.jira_projects
+  if type(url) ~= 'string' or not url:match('^https://[%w%.%-]+') then return nil end
+  if type(projects) ~= 'table' or #projects == 0 then return nil end
+  for _, p in ipairs(projects) do
+    if type(p) ~= 'string' or not p:match('^[A-Z][A-Z0-9]+$') then return nil end
+  end
+  return [[\b(?:]] .. table.concat(projects, '|') .. [[)-\d+\b]], (url:gsub('/+$', '')) .. '/browse/$0'
+end
+
+config.hyperlink_rules = wezterm.default_hyperlink_rules()
+table.insert(config.hyperlink_rules, { regex = [==[(?:^|[\s(])(#(\d{1,6}))\b]==], format = 'ghref:$2', highlight = 1 })
+table.insert(config.hyperlink_rules, { regex = [==[(?:^|[\s(\['"])(]==] .. FILE_REGEX .. ')', format = 'edit:$1', highlight = 1 })
+config.quick_select_patterns = { [==[#\d{1,6}\b]==], FILE_REGEX }
+
+local JIRA_REGEX, JIRA_FORMAT = jira_rule()
+if JIRA_REGEX then
+  table.insert(config.hyperlink_rules, { regex = JIRA_REGEX, format = JIRA_FORMAT })
+  table.insert(config.quick_select_patterns, JIRA_REGEX)
+end
+
 config.keys = {}
 for _, k in ipairs(KEYMAP) do
   if k.key then
