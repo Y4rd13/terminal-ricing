@@ -234,6 +234,63 @@ else
     printf 'SKIP: no Lua interpreter, cannot load wezterm.lua\n'
 fi
 
+# ── T8: WezTerm link settings are merged into the Windows-side file, never clobbered ──
+# setup.sh writes the editor for file:line links and the Jira site into the same JSON
+# that WezTerm's Settings page writes, so every other key must survive, and a file that
+# is not valid JSON is left alone rather than replaced.
+eval "$(sed -n '/^merge_wezterm_settings() {/,/^}/p; /^valid_jira() {/,/^}/p' "$SETUP")"
+
+declare -F merge_wezterm_settings >/dev/null && declare -F valid_jira >/dev/null
+report "setup.sh defines no merge_wezterm_settings or valid_jira" $?
+
+json_is() { python3 -c 'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])) == json.loads(sys.argv[2]) else 1)' "$1" "$2"; }
+
+if declare -F merge_wezterm_settings >/dev/null && command -v python3 >/dev/null 2>&1; then
+    wz="$sandbox/wezterm-settings.json"
+    printf '{"lang": "es", "opacity": 0.7}' > "$wz"
+    merge_wezterm_settings "$wz" nvim "https://x.atlassian.net/" "FTK,OPS"
+    report "merge_wezterm_settings failed on a valid settings file" $?
+    json_is "$wz" '{"lang":"es","opacity":0.7,"editor":"nvim","jira_url":"https://x.atlassian.net","jira_projects":["FTK","OPS"]}'
+    report "merge_wezterm_settings lost a key or wrote the wrong values: $(cat "$wz")" $?
+
+    merge_wezterm_settings "$wz" "" "" ""
+    json_is "$wz" '{"lang":"es","opacity":0.7,"editor":"nvim","jira_url":"https://x.atlassian.net","jira_projects":["FTK","OPS"]}'
+    report "empty arguments changed the saved link settings: $(cat "$wz")" $?
+
+    printf '{ not json' > "$wz"
+    merge_wezterm_settings "$wz" code "" ""
+    rc=$?
+    [[ $rc -eq 2 && "$(cat "$wz")" == '{ not json' ]]
+    report "a broken settings file was overwritten (rc=$rc)" $?
+
+    : > "$wz"
+    merge_wezterm_settings "$wz" micro "" ""
+    json_is "$wz" '{"editor":"micro"}'
+    report "an empty settings file was not treated as no settings: $(cat "$wz")" $?
+
+    rm -f "$wz"
+    merge_wezterm_settings "$wz" code "" ""
+    json_is "$wz" '{"editor":"code"}'
+    report "a missing settings file was not created: $(cat "$wz" 2>&1)" $?
+else
+    printf 'SKIP: python3 not installed or merge_wezterm_settings missing\n'
+fi
+
+if declare -F valid_jira >/dev/null; then
+    valid_jira https://x.atlassian.net "FTK,OPS"
+    report "valid_jira rejected an https site with upper-case prefixes" $?
+    for bad in "http://x.atlassian.net|FTK" "https://x.atlassian.net|ftk" "https://x.atlassian.net|" \
+               "https://x.atlassian.net|FTK,.*" "https://x.atlassian.net; rm -rf ~|FTK" "|FTK"; do
+        ! valid_jira "${bad%%|*}" "${bad#*|}"
+        report "valid_jira accepted url='${bad%%|*}' prefixes='${bad#*|}'" $?
+    done
+fi
+
+grep -q '^    step_links$' "$SETUP"
+report "cmd_configure never calls step_links" $?
+grep -q 'merge_wezterm_settings "\$settings_file"' "$SETUP"
+report "step_execute never writes the WezTerm link settings" $?
+
 # ── Summary ─────────────────────────────────────────────────────────────────────
 echo ""
 if [[ "$failed" -eq 0 ]]; then
