@@ -616,6 +616,27 @@ do
     check(read().color_scheme == 'Nord', 'the chosen color scheme was not saved')
     local last = w.performed[#w.performed]
     check(last and last.kind == 'InputSelector', 'the scheme list does not reopen to try another one')
+    local reopened = last and last.kind == 'InputSelector' and last.arg
+    local nord = reopened and find(reopened.choices, 'Nord')
+    check(nord and plain(nord.label):find('●', 1, true), 'the reopened list does not mark the scheme just picked')
+    -- The page shows what the window shows, not the scheme the config started with.
+    local wp = fake_window(w.overrides)
+    local k = binding(cfg, 'F1', nil)
+    local hh = open_help(function(x) k.action.fn(x, fake_pane()) end)
+    local srow = find(hh.choices, 'action:settings')
+    hh.action.fn(wp, fake_pane(), srow.id, '')
+    local w3 = fake_window(w.overrides)
+    run_action(wp.performed[1], w3)
+    local page2 = w3.performed[#w3.performed] and w3.performed[#w3.performed].arg
+    local crow = page2 and find(page2.choices, 'setting:color_scheme')
+    check(crow and plain(crow.label):find('Nord', 1, true), 'the Settings page still shows the old scheme: '
+      .. tostring(crow and plain(crow.label)))
+    -- Esc on the scheme list drops the window override and reloads, so every window takes
+    -- the saved scheme and deleting the file really goes back to the default.
+    local before_esc = reloads
+    if reopened then reopened.action.fn(w, fake_pane(), nil, nil) end
+    check((w.overrides or {}).color_scheme == nil, 'closing the scheme list left a color_scheme override on the window')
+    check(reloads == before_esc + 1, 'closing the scheme list did not reload the config')
   end
 
   os.remove(file); os.execute('rmdir "' .. dir .. '"')

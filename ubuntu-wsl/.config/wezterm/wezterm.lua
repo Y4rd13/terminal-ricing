@@ -714,9 +714,10 @@ end
 -- =========================================================
 -- ⚙ Settings: página con el mismo estilo que la ayuda. Cada ajuste muestra su valor; Enter
 -- abre la lista de valores y elegir uno lo guarda en SETTINGS_FILE. Idioma, avisos,
--- opacidad y fuente recargan la config; el esquema de colores se aplica al tiro a la
--- ventana y la lista vuelve a abrirse para probar otro (el buscador no avisa al moverse,
--- así que no hay vista previa mientras recorres la lista).
+-- opacidad y fuente recargan la config. El esquema de colores se prueba en la ventana
+-- (override) y la lista vuelve a abrirse para probar otro; al cerrarla con Esc se quita el
+-- override y se recarga, así todas las ventanas toman el último guardado. El buscador no
+-- avisa al moverse, así que no hay vista previa mientras recorres la lista.
 -- =========================================================
 local function save_setting(key, value)
   local data = read_settings()
@@ -764,7 +765,10 @@ local SETTINGS_PAGE = {
     current = function() return config.font_size end },
   { id = 'color_scheme', section = 'look', label = { en = 'Color scheme', es = 'Esquema de colores' },
     values = function() return list(scheme_names()) end,
-    current = function() return config.color_scheme end, live = true },
+    -- Lo que muestra la ventana: el esquema de prueba (override) mientras eliges, si hay uno.
+    current = function(window)
+      return ((window and window:get_config_overrides()) or {}).color_scheme or config.color_scheme
+    end, live = true },
 }
 
 local function value_label(setting, value)
@@ -777,7 +781,7 @@ end
 local show_settings -- se define abajo; la lista de valores vuelve a la página
 
 local function show_values(window, pane, setting)
-  local current = setting.current()
+  local current = setting.current(window)
   local choices = {}
   for _, v in ipairs(setting.values()) do
     local mark = v[1] == current and '●' or ' '
@@ -794,7 +798,17 @@ local function show_values(window, pane, setting)
     fuzzy_description = wezterm.nerdfonts.md_cog .. '  ' .. tr(setting.label) .. ': ',
     action = wezterm.action_callback(function(win, p, id)
       help_closed(win, pane:pane_id())
-      if not id then return end
+      if not id then
+        -- Esc en una lista en vivo: fuera el esquema de prueba y recarga, así todas las
+        -- ventanas toman lo guardado y borrar el archivo vuelve de verdad al default.
+        if setting.live then
+          local overrides = win:get_config_overrides() or {}
+          overrides[setting.id] = nil
+          win:set_config_overrides(overrides)
+          wezterm.reload_configuration()
+        end
+        return
+      end
       local value
       for _, v in ipairs(setting.values()) do
         if tostring(v[1]) == id then value = v[1] end
@@ -821,7 +835,7 @@ show_settings = function(window, pane)
     table.insert(choices, { id = 'header:' .. section.id, label = help_header(section, row_cols) })
     for _, setting in ipairs(SETTINGS_PAGE) do
       if setting.section == section.id then
-        local value = value_label(setting, setting.current())
+        local value = value_label(setting, setting.current(window))
         local name_cols = 30
         table.insert(choices, { id = 'setting:' .. setting.id, label = wezterm.format {
           { Foreground = { Color = '#bd93f9' } }, { Text = ' ' .. wezterm.nerdfonts.md_cog .. '  ' },
