@@ -15,17 +15,28 @@ local wezterm = require 'wezterm'
 local CLAUDE_COLORS = { waiting = '#ff5555', working = '#f1fa8c', done = '#50fa7b', idle = '#6272a4' }
 local CLAUDE_SPINNER = { ['◐'] = true, ['◑'] = true, ['◒'] = true, ['◓'] = true }
 
+local function claude_glyph(title) return (title or ''):match('^(\226[\128-\191][\128-\191]) ') end
+
+-- 'waiting', 'working', 'idle' o nil (no es una sesión de Claude), a partir del título y las
+-- variables de un panel. Lo usan el título de la pestaña y el aviso de Windows (sección 7).
+local function claude_kind(title, user_vars)
+  if (user_vars or {}).claude_state == 'waiting' then return 'waiting' end
+  local glyph = claude_glyph(title)
+  if not glyph then return nil end
+  if CLAUDE_SPINNER[glyph] or glyph:match('^\226[\160-\163]') then return 'working' end -- braille U+2800-28FF
+  if glyph == '✳' then return 'idle' end
+  return nil
+end
+
 local function claude_state(tab)
   local pane = tab.active_pane
-  local glyph = (pane.title or ''):match('^(\226[\128-\191][\128-\191]) ')
-  if (pane.user_vars or {}).claude_state == 'waiting' then
+  local glyph = claude_glyph(pane.title)
+  local kind = claude_kind(pane.title, pane.user_vars)
+  if kind == 'waiting' then
     return { color = CLAUDE_COLORS.waiting, mark = wezterm.nerdfonts.md_bell_ring }, glyph
-  end
-  if not glyph then return nil end
-  if CLAUDE_SPINNER[glyph] or glyph:match('^\226[\160-\163]') then -- braille U+2800-28FF
+  elseif kind == 'working' then
     return { color = CLAUDE_COLORS.working, mark = glyph }, glyph
-  end
-  if glyph == '✳' then
+  elseif kind == 'idle' then
     if pane.has_unseen_output and not tab.is_active then return { color = CLAUDE_COLORS.done, mark = '•' }, glyph end
     return { mark = glyph, mark_color = CLAUDE_COLORS.idle }, glyph -- idle: solo el ✳ tenue
   end
@@ -695,6 +706,44 @@ table.insert(KEYMAP, wez('help', 'Ctrl+Alt+Down', { en = 'Make the window more t
   'DownArrow', 'CTRL|ALT', change_opacity(-OPACITY_STEP)))
 table.insert(KEYMAP, wez('help', 'Ctrl+Alt+0', { en = 'Reset the window opacity', es = 'Volver a la transparencia de la config' },
   '0', 'CTRL|ALT', wezterm.action_callback(function(window) set_opacity(window, nil) end)))
+
+-- Renombrar la pestaña: el nombre queda fijo (útil para sesiones de Claude); vacío vuelve al
+-- título automático. El estado de Claude se sigue viendo, porque sale del título del panel.
+table.insert(KEYMAP, wez('tabs', 'Ctrl+Shift+E',
+  { en = 'Rename the tab (empty = automatic title)', es = 'Renombrar la pestaña (vacío = automático)' },
+  'E', 'CTRL|SHIFT', act.PromptInputLine {
+    description = tr { en = 'Tab name (empty = automatic title):', es = 'Nombre de la pestaña (vacío = título automático):' },
+    action = wezterm.action_callback(function(window, _, line)
+      if line then window:active_tab():set_title(line) end
+    end),
+  }))
+
+-- Aviso de Windows cuando una sesión de Claude Code que no estás mirando termina (trabajando
+-- -> idle) o empieza a necesitarte (claude_state = waiting). "No la estás mirando": es otro
+-- panel, o la ventana de WezTerm no tiene el foco. La primera vez que se ve un panel solo
+-- se anota su estado, y cada cambio avisa una vez.
+local claude_seen = {} -- pane_id -> último estado ('waiting' | 'working' | 'idle' | false)
+
+wezterm.on('update-status', function(window)
+  local active = window:active_pane():pane_id()
+  local focused = window:is_focused()
+  for _, tab in ipairs(window:mux_window():tabs()) do
+    for _, pane in ipairs(tab:panes()) do
+      local id, title = pane:pane_id(), pane:get_title()
+      local kind = claude_kind(title, pane:get_user_vars()) or false
+      local before = claude_seen[id]
+      claude_seen[id] = kind
+      if before ~= nil and kind ~= before and (id ~= active or not focused) then
+        local name = title:gsub('^\226[\128-\191][\128-\191] ', '')
+        if kind == 'idle' and before == 'working' then
+          window:toast_notification('Claude Code', string.format(tr { en = '%s finished', es = '%s terminó' }, name))
+        elseif kind == 'waiting' then
+          window:toast_notification('Claude Code', string.format(tr { en = '%s needs you', es = '%s te necesita' }, name))
+        end
+      end
+    end
+  end
+end)
 
 -- El botón: cápsula morada con ícono de teclado, rosa al pasar el mouse. El fondo de los
 -- bordes redondeados es el de las pestañas inactivas, para que calce con la barra.

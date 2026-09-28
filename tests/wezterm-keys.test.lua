@@ -60,8 +60,10 @@ package.loaded.wezterm = {
   }),
   -- Records which handlers exist before the tab-bar plugin loads: WezTerm runs only the
   -- first format-tab-title handler, so ours must come before bar.wezterm's.
+  -- Several handlers can share an event (WezTerm runs them in order); keep them all.
   on = function(event, fn)
-    handlers[event] = fn
+    local prev = handlers[event]
+    handlers[event] = prev and function(...) prev(...); return fn(...) end or fn
     if not plugin_loaded then before_plugin[event] = true end
   end,
   plugin = { require = function()
@@ -115,6 +117,11 @@ local function fake_window(overrides, id)
   function w:perform_action(a, _) table.insert(self.performed, a == nil and 'nil action' or a) end
   function w:get_config_overrides() return self.overrides end
   function w:set_config_overrides(o) self.overrides = o end
+  -- What every real window answers; tests that care override these.
+  function w:active_pane() return { pane_id = function() return 1 end } end
+  function w:is_focused() return true end
+  function w:mux_window() return { tabs = function() return {} end } end
+  function w:toast_notification() end
   return w
 end
 
@@ -381,6 +388,75 @@ if f1 then
       check(text:find(RET, 1, true) ~= nil, 'in a 50-column pane row ' .. c.id .. ' lost its Enter mark')
     end
   end
+end
+
+-- Ctrl+Shift+E renames the current tab; an empty name goes back to the automatic title.
+do
+  local rename = binding(config, 'E', 'CTRL|SHIFT')
+  check(rename and rename.action.kind == 'PromptInputLine', 'Ctrl+Shift+E does not ask for a tab name')
+  if rename and rename.action.kind == 'PromptInputLine' then
+    local titled
+    local w = fake_window()
+    function w:active_tab() return { set_title = function(_, t) titled = t end } end
+    rename.action.arg.action.fn(w, fake_pane(), 'API plenor')
+    check(titled == 'API plenor', 'renaming did not set the tab title')
+    titled = 'untouched'
+    rename.action.arg.action.fn(w, fake_pane(), nil)
+    check(titled == 'untouched', 'Esc on the rename prompt changed the title')
+    rename.action.arg.action.fn(w, fake_pane(), '')
+    check(titled == '', 'an empty name does not return to the automatic title')
+  end
+end
+
+-- A Windows toast when a Claude Code session you are not looking at finishes (working ->
+-- idle) or starts needing you (claude_state = waiting). Never on the first look at a pane,
+-- never twice for one change, never for the pane you are looking at, never for a plain shell.
+do
+  local status = handlers['update-status']
+  local panes = {}
+  local function pane(id, title, vars)
+    panes[id] = { title = title, vars = vars or {} }
+  end
+  local function fake(active_id, focused)
+    local w = fake_window(nil, 42)
+    w.toasts = {}
+    function w:toast_notification(title, msg) table.insert(self.toasts, title .. ': ' .. msg) end
+    function w:is_focused() return focused end
+    function w:active_pane() return { pane_id = function() return active_id end } end
+    function w:mux_window()
+      local list = {}
+      for id, p in pairs(panes) do
+        table.insert(list, { pane_id = function() return id end, get_title = function() return p.title end,
+                             get_user_vars = function() return p.vars end })
+      end
+      return { tabs = function() return { { panes = function() return list end } } end }
+    end
+    return w
+  end
+  local function tick(active_id, focused)
+    local w = fake(active_id, focused)
+    status(w, fake_pane(active_id))
+    return w.toasts
+  end
+
+  pane(1, '◐ Planforge local'); pane(2, '◐ rtk-hook'); pane(3, 'zsh'); pane(4, '✳ NeuralGT')
+  check(#tick(9, true) == 0, 'the first look at the panes raised a toast')
+  pane(1, '✳ Planforge local')
+  local t = tick(9, true)
+  check(#t == 1 and t[1]:find('Planforge local', 1, true) and not t[1]:find('✳', 1, true),
+    'a background session that finished raised no toast naming it: ' .. table.concat(t, ' | '))
+  check(#tick(9, true) == 0, 'the same finish raised a second toast')
+  pane(2, '✳ rtk-hook')
+  check(#tick(2, true) == 0, 'the session you are looking at raised a toast when it finished')
+  pane(2, '◐ rtk-hook'); tick(2, true); pane(2, '✳ rtk-hook')
+  check(#tick(2, false) == 1, 'the active session finished while WezTerm was not focused, and no toast came')
+  pane(4, '◐ NeuralGT', { claude_state = 'waiting' })
+  t = tick(9, true)
+  check(#t == 1 and t[1]:find('NeuralGT', 1, true), 'a background session that needs you raised no toast: '
+    .. table.concat(t, ' | '))
+  check(#tick(9, true) == 0, 'a session still waiting raised a second toast')
+  pane(3, 'zsh'); tick(9, true); pane(3, 'bash')
+  check(#tick(9, true) == 0, 'a plain shell tab raised a toast')
 end
 
 -- Tab titles change colour under the mouse. bar.wezterm ignores the hover flag, and WezTerm
