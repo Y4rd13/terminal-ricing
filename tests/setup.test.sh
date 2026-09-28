@@ -215,6 +215,25 @@ else
     printf 'SKIP: shellcheck not installed\n'
 fi
 
+# ── T7: the WezTerm keys help lists every binding and opens from F1 and the button ─
+# The help is built from the same KEYMAP table as config.keys, so it cannot drift from
+# the real bindings; this runs the real config against a stubbed wezterm module to prove
+# it. Any Lua 5.1+ interpreter will do: lua5.4 in CI, or the one inside Neovim.
+lua_cmd=()
+if command -v lua5.4 >/dev/null 2>&1; then
+    lua_cmd=(lua5.4)
+elif command -v lua >/dev/null 2>&1; then
+    lua_cmd=(lua)
+elif command -v nvim >/dev/null 2>&1; then
+    lua_cmd=(nvim -l)
+fi
+if [[ ${#lua_cmd[@]} -gt 0 ]]; then
+    out="$("${lua_cmd[@]}" "$REPO/tests/wezterm-keys.test.lua" "$REPO/ubuntu-wsl/.config/wezterm/wezterm.lua" 2>&1)"
+    report "ubuntu-wsl wezterm.lua keys help: $out" $?
+else
+    printf 'SKIP: no Lua interpreter, cannot load wezterm.lua\n'
+fi
+
 # ── Summary ─────────────────────────────────────────────────────────────────────
 echo ""
 if [[ "$failed" -eq 0 ]]; then
