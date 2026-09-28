@@ -40,7 +40,8 @@ package.loaded.wezterm = {
   log_info = function() end,
   mux = { all_windows = function() return {} end, spawn_window = function() end },
   GLOBAL = {},
-  nerdfonts = setmetatable({}, { __index = function(_, k) return k end }),
+  -- A Nerd Font glyph is one cell wide; the stub keeps that so row widths add up.
+  nerdfonts = setmetatable({}, { __index = function() return '*' end }),
   on = function(event, fn) handlers[event] = fn end,
   plugin = { require = function() return { apply_to_config = function() end } end },
   time = { call_after = function() end },
@@ -89,6 +90,24 @@ local function fake_window()
   return w
 end
 
+local PANE_COLS = 120
+local function fake_pane()
+  return { get_dimensions = function() return { cols = PANE_COLS } end }
+end
+
+-- Display width of a plain label: one cell per UTF-8 character (icons and arrows included).
+local function width(s) return select(2, s:gsub('[^\128-\191]', '')) end
+
+local function has_background(label)
+  if type(label) ~= 'table' then return false end
+  for _, item in ipairs(label) do
+    if type(item) == 'table' and item.Background then return true end
+  end
+  return false
+end
+
+local function is_header(c) return c.id:sub(1, 7) == 'header:' end
+
 local function binding_id(k) return k.key .. '|' .. (k.mods or '') end
 
 -- Opens the help through `run(window)` and returns the InputSelector it performed, if any.
@@ -111,7 +130,7 @@ local help
 if f1 then
   check(f1.action.kind == 'callback', 'F1 is not bound to a callback that opens the help')
   if f1.action.kind == 'callback' then
-    help = open_help(function(w) f1.action.fn(w, {}) end)
+    help = open_help(function(w) f1.action.fn(w, fake_pane()) end)
   end
   check(help ~= nil, 'F1 did not open an InputSelector')
 end
@@ -128,7 +147,7 @@ if help then
     check(by_id[id] ~= nil, 'binding ' .. id .. ' is in config.keys but not in the help')
     if by_id[id] then
       local w = fake_window()
-      help.action.fn(w, {}, id, by_id[id].label)
+      help.action.fn(w, fake_pane(), id, by_id[id].label)
       check(#w.performed == 1 and w.performed[1] == k.action,
         'Enter on ' .. id .. ' did not run its own action')
     end
@@ -143,15 +162,66 @@ if help then
     check(found ~= nil, 'the help lists no [' .. group .. '] entry')
     if found then
       local w = fake_window()
-      help.action.fn(w, {}, found.id, found.label)
+      help.action.fn(w, fake_pane(), found.id, found.label)
       check(#w.performed == 0, 'Enter on a [' .. group .. '] entry performed an action')
     end
   end
 
   -- Esc (id and label nil) does nothing.
   local w = fake_window()
-  help.action.fn(w, {}, nil, nil)
+  help.action.fn(w, fake_pane(), nil, nil)
   check(#w.performed == 0, 'cancelling the help performed an action')
+
+  -- Readable over a transparent window: every row paints its own background, and all rows
+  -- share one width that fills most of the pane.
+  local row_width
+  for _, c in ipairs(help.choices) do
+    check(has_background(c.label), 'row ' .. c.id .. ' has no background of its own')
+    local cw = width(plain(c.label))
+    row_width = row_width or cw
+    check(cw == row_width, 'row ' .. c.id .. ' is ' .. cw .. ' cells wide, the first row is ' .. row_width)
+  end
+  check(row_width and row_width >= PANE_COLS - 12 and row_width <= PANE_COLS,
+    'rows are ' .. tostring(row_width) .. ' cells wide in a ' .. PANE_COLS .. '-column pane')
+
+  -- Sections: each entry sits under its own header, and Enter on a header does nothing.
+  local section_of, current = {}, nil
+  for _, c in ipairs(help.choices) do
+    if is_header(c) then current = c.id:sub(8) else section_of[c.id] = current end
+  end
+  for _, s in ipairs({ 'help', 'tabs', 'panes', 'tmux', 'zsh' }) do
+    local h = by_id['header:' .. s]
+    check(h ~= nil, 'the help has no header for section ' .. s)
+    if h then
+      local hw = fake_window()
+      help.action.fn(hw, fake_pane(), h.id, h.label)
+      check(#hw.performed == 0, 'Enter on header ' .. s .. ' performed an action')
+    end
+  end
+  for id, s in pairs({ ['F1|'] = 'help', ['T|CTRL|SHIFT'] = 'tabs', ['Y|CTRL|SHIFT'] = 'panes',
+                       ['s|LEADER'] = 'panes', ['r|CTRL|SHIFT'] = 'help' }) do
+    check(section_of[id] == s, id .. ' is under section ' .. tostring(section_of[id]) .. ', expected ' .. s)
+  end
+
+  -- Runnable rows carry the Enter mark; tmux and zsh rows say they are reference only.
+  local entries = 0
+  for _, c in ipairs(help.choices) do
+    if not is_header(c) then
+      entries = entries + 1
+      local text = plain(c.label)
+      if c.id:find('|', 1, true) then
+        check(text:find('↵', 1, true) ~= nil, 'runnable row ' .. c.id .. ' has no ↵ mark')
+      else
+        check(text:find('(reference)', 1, true) ~= nil and not text:find('↵', 1, true),
+          'reference row ' .. c.id .. ' is not marked (reference) without ↵')
+      end
+    end
+  end
+  check(plain(help.fuzzy_description):find(tostring(entries), 1, true) ~= nil,
+    'the search line does not give the number of shortcuts (' .. entries .. ')')
+
+  -- The overlay's tab title is not the button's text, so "Keys" is not shown twice.
+  check(not plain(help.title):find('Keys', 1, true), 'the help tab is titled like the Keys button')
 end
 
 -- The tab-bar button is shown, a left click opens the help and suppresses the new tab.
@@ -160,12 +230,12 @@ local click = handlers['new-tab-button-click']
 check(click ~= nil, 'no new-tab-button-click handler')
 if click then
   local ret
-  local clicked = open_help(function(w) ret = click(w, {}, 'Left', action.SpawnTab) end)
+  local clicked = open_help(function(w) ret = click(w, fake_pane(), 'Left', action.SpawnTab) end)
   check(clicked ~= nil, 'a left click on the tab-bar button did not open the help')
   check(ret == false, 'a left click on the tab-bar button still opens a new tab')
 
   local w = fake_window()
-  ret = click(w, {}, 'Right', action.ShowLauncher)
+  ret = click(w, fake_pane(), 'Right', action.ShowLauncher)
   check(#w.performed == 0 and ret ~= false, 'a right click no longer runs the default action')
 end
 
@@ -178,7 +248,7 @@ local es_f1
 for _, k in ipairs(es.keys or {}) do
   if k.key == 'F1' then es_f1 = k end
 end
-local es_help = es_f1 and open_help(function(w) es_f1.action.fn(w, {}) end)
+local es_help = es_f1 and open_help(function(w) es_f1.action.fn(w, fake_pane()) end)
 check(es_help ~= nil, "F1 does not open the help with HELP_LANG = 'es'")
 
 if help and es_help then
@@ -189,6 +259,7 @@ if help and es_help then
     check(e and plain(c.label) ~= plain(e.label),
       'entry ' .. c.id .. ' reads the same in both languages: ' .. plain(c.label))
   end
+  check(plain(help.fuzzy_description) ~= plain(es_help.fuzzy_description), 'the search line is not translated')
 end
 
 local function button_text(cfg) return plain((cfg.tab_bar_style or {}).new_tab) end
