@@ -15,6 +15,7 @@ local config_path = assert(arg[1], 'usage: wezterm-keys.test.lua <wezterm.lua>')
 local handlers = {}
 local plugin_loaded, before_plugin = false, {}
 local live_panes = {}
+local reloads = 0
 
 -- act.X is both a value (act.TogglePaneZoomState) and a constructor (act.SpawnTab '...').
 local action = setmetatable({}, {
@@ -35,10 +36,21 @@ package.loaded.wezterm = {
   font = identity,
   font_with_fallback = identity,
   format = identity,
-  get_builtin_color_schemes = function() return {} end,
+  get_builtin_color_schemes = function() return { ['Dracula'] = {}, ['Nord'] = {}, ['Gruvbox Dark'] = {} } end,
   home_dir = '/nonexistent',
-  json_encode = function() return '' end,
-  json_parse = function() return nil end,
+  -- A flat table of strings, numbers and booleans is all the config stores; encode it as a
+  -- Lua literal and parse it back, which is enough for a round trip. Bad input -> error.
+  json_encode = function(t)
+    local out = {}
+    for k, v in pairs(t) do table.insert(out, string.format('[%q]=%s', k, type(v) == 'string' and string.format('%q', v) or tostring(v))) end
+    return 'return {' .. table.concat(out, ',') .. '}'
+  end,
+  json_parse = function(text)
+    local chunk = (loadstring or load)(text)
+    if not chunk then error('not json') end
+    return chunk()
+  end,
+  reload_configuration = function() reloads = reloads + 1 end,
   log_info = function() end,
   mux = {
     all_windows = function() return {} end,
@@ -261,7 +273,7 @@ if help then
     if not is_header(c) then
       entries = entries + 1
       local text = plain(c.label)
-      if c.id:find('|', 1, true) then
+      if c.id:find('|', 1, true) or c.id:sub(1, 7) == 'action:' then
         check(text:find(RET, 1, true) ~= nil, 'runnable row ' .. c.id .. ' has no Enter mark')
       else
         check(not text:find(RET, 1, true) and not text:find('(reference)', 1, true),
@@ -506,6 +518,109 @@ do
   cfg_handlers['update-status'](w, fake_pane(1))
   check(#w.toasts == 0, 'with CLAUDE_TOASTS = false a finished background session still raised a toast')
   load_config('en') -- back to the default config for the checks below
+end
+
+-- ⚙ Settings: reached from a row of the F1 help (section Help & config). Each setting shows
+-- its value; Enter opens a list of values, and choosing one saves it to
+-- <home>/.wezterm-settings.json (outside the repo) and reloads the config, where the saved
+-- values override the file's defaults. A missing or broken file means the defaults.
+do
+  local W = package.loaded.wezterm
+  local dir = os.tmpname(); os.remove(dir); os.execute('mkdir -p "' .. dir .. '"')
+  local file = dir .. '/.wezterm-settings.json'
+  local saved_home = W.home_dir
+  W.home_dir = dir
+  local function write(t) local f = io.open(file, 'w'); f:write(W.json_encode(t)); f:close() end
+  local function read()
+    local f = io.open(file, 'r'); if not f then return {} end
+    local text = f:read('*a'); f:close()
+    local ok, t = pcall(W.json_parse, text)
+    return ok and t or {}
+  end
+  local function help_of(cfg)
+    local k = binding(cfg, 'F1', nil)
+    return k and open_help(function(w) k.action.fn(w, fake_pane()) end)
+  end
+  local function find(choices, id) for _, c in ipairs(choices or {}) do if c.id == id then return c end end end
+
+  os.remove(file)
+  local cfg = load_config('en')
+  check(near(cfg.window_background_opacity, 0.82) and cfg.font_size == 13, 'with no settings file the defaults changed')
+
+  write({ lang = 'es', toasts = false, opacity = 0.7, font_size = 15, color_scheme = 'Nord' })
+  cfg = load_config('en')
+  check(near(cfg.window_background_opacity, 0.7), 'the saved opacity is not applied')
+  check(cfg.font_size == 15, 'the saved font size is not applied')
+  check(cfg.color_scheme == 'Nord', 'the saved color scheme is not applied: ' .. tostring(cfg.color_scheme))
+  local h = help_of(cfg)
+  check(h and plain(h.title):find('Ayuda', 1, true), 'the saved language (es) is not applied to the help')
+
+  local f = io.open(file, 'w'); f:write('{ not json'); f:close()
+  local ok_load, cfg_bad = pcall(load_config, 'en')
+  check(ok_load and near(cfg_bad.window_background_opacity, 0.82), 'a broken settings file breaks the config or its defaults')
+
+  os.remove(file)
+  cfg = load_config('en')
+  h = help_of(cfg)
+  local row = h and find(h.choices, 'action:settings')
+  check(row ~= nil, 'the F1 help has no Settings row')
+  local section
+  for _, c in ipairs(h and h.choices or {}) do
+    if is_header(c) then section = c.id end
+    if c.id == 'action:settings' then break end
+  end
+  check(section == 'header:help', 'the Settings row is not under Help & config')
+
+  local function run_action(a, w)
+    if a and a.kind == 'callback' then a.fn(w, fake_pane()) end
+  end
+  local page
+  if row then
+    local w = fake_window()
+    h.action.fn(w, fake_pane(), row.id, row.label)
+    local w2 = fake_window()
+    run_action(w.performed[1], w2)
+    page = w2.performed[1] and w2.performed[1].kind == 'InputSelector' and w2.performed[1].arg
+  end
+  check(page ~= nil, 'Enter on the Settings row does not open the settings page')
+  if page then
+    local want = { ['setting:lang'] = 'English', ['setting:toasts'] = 'on', ['setting:opacity'] = '82%',
+                   ['setting:font_size'] = '13', ['setting:color_scheme'] = 'Dracula (custom)' }
+    for id, value in pairs(want) do
+      local c = find(page.choices, id)
+      check(c and plain(c.label):find(value, 1, true), id .. ' does not show its current value ' .. value
+        .. ': ' .. tostring(c and plain(c.label)))
+    end
+
+    local function pick(setting_id, value_id, w)
+      w = w or fake_window()
+      page.action.fn(w, fake_pane(), setting_id, '')
+      local picker = w.performed[#w.performed]
+      picker = picker and picker.kind == 'InputSelector' and picker.arg
+      check(picker and find(picker.choices, value_id), setting_id .. ' offers no value ' .. value_id)
+      if picker then picker.action.fn(w, fake_pane(), value_id, '') end
+      return w
+    end
+
+    local before = reloads
+    pick('setting:lang', 'es')
+    check(read().lang == 'es' and reloads == before + 1, 'choosing Español was not saved and reloaded')
+    pick('setting:toasts', 'false')
+    check(read().toasts == false and read().lang == 'es', 'turning notifications off lost it or the language')
+    local w = pick('setting:opacity', '0.9', fake_window({ window_background_opacity = 0.5 }))
+    check(near(read().opacity, 0.9), 'the chosen opacity was not saved')
+    check((w.overrides or {}).window_background_opacity == nil, 'a session opacity override hides the new default')
+    pick('setting:font_size', '15')
+    check(read().font_size == 15, 'the chosen font size was not saved as a number')
+    w = pick('setting:color_scheme', 'Nord')
+    check(read().color_scheme == 'Nord', 'the chosen color scheme was not saved')
+    local last = w.performed[#w.performed]
+    check(last and last.kind == 'InputSelector', 'the scheme list does not reopen to try another one')
+  end
+
+  os.remove(file); os.execute('rmdir "' .. dir .. '"')
+  W.home_dir = saved_home
+  load_config('en')
 end
 
 -- Tab titles change colour under the mouse. bar.wezterm ignores the hover flag, and WezTerm

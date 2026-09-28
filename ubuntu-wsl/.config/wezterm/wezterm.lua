@@ -100,6 +100,25 @@ local HELP_LANG = 'en'
 -- false los apaga. Los colores de estado en las pestañas siguen igual.
 local CLAUDE_TOASTS = true
 
+-- Ajustes elegidos desde la página ⚙ Settings (primera fila de F1, sección 7). Se guardan
+-- fuera del repo, en ~/.wezterm-settings.json (C:\Users\<usuario>\ en Windows), y pisan los
+-- valores por defecto de este archivo, que así queda idéntico al del repo. Un archivo que
+-- falta o no se puede leer deja los valores por defecto.
+local SETTINGS_FILE = wezterm.home_dir .. '/.wezterm-settings.json'
+
+local function read_settings()
+  local f = io.open(SETTINGS_FILE, 'r')
+  if not f then return {} end
+  local text = f:read('*a')
+  f:close()
+  local ok, data = pcall(wezterm.json_parse, text)
+  return (ok and type(data) == 'table') and data or {}
+end
+
+local SETTINGS = read_settings()
+if SETTINGS.lang == 'en' or SETTINGS.lang == 'es' then HELP_LANG = SETTINGS.lang end
+if type(SETTINGS.toasts) == 'boolean' then CLAUDE_TOASTS = SETTINGS.toasts end
+
 -- =========================================================
 -- OPTIMIZACIONES
 -- =========================================================
@@ -230,6 +249,11 @@ do
     config.color_scheme = 'Dracula (custom)'
   end
 end
+
+-- Ajustes guardados desde ⚙ Settings (ver SETTINGS_FILE arriba)
+if type(SETTINGS.opacity) == 'number' then config.window_background_opacity = SETTINGS.opacity end
+if type(SETTINGS.font_size) == 'number' then config.font_size = SETTINGS.font_size end
+if type(SETTINGS.color_scheme) == 'string' then config.color_scheme = SETTINGS.color_scheme end
 
 -- =========================================================
 -- 4.2) bar.wezterm (powerline + clean)
@@ -663,7 +687,7 @@ local function show_help(window, pane)
     table.insert(choices, { id = 'header:' .. section.id, label = help_header(section, row_cols) })
     for i, k in ipairs(KEYMAP) do
       if k.section == section.id then
-        local id = k.key and (k.key .. '|' .. (k.mods or '')) or (k.group .. ':' .. i)
+        local id = k.id or (k.key and (k.key .. '|' .. (k.mods or '')) or (k.group .. ':' .. i))
         run[id] = k.action
         entries = entries + 1
         table.insert(choices, { id = id, label = help_row(k, row_cols) })
@@ -686,6 +710,151 @@ local function show_help(window, pane)
     end),
   }, pane)
 end
+
+-- =========================================================
+-- ⚙ Settings: página con el mismo estilo que la ayuda. Cada ajuste muestra su valor; Enter
+-- abre la lista de valores y elegir uno lo guarda en SETTINGS_FILE. Idioma, avisos,
+-- opacidad y fuente recargan la config; el esquema de colores se aplica al tiro a la
+-- ventana y la lista vuelve a abrirse para probar otro (el buscador no avisa al moverse,
+-- así que no hay vista previa mientras recorres la lista).
+-- =========================================================
+local function save_setting(key, value)
+  local data = read_settings()
+  data[key] = value
+  local f = io.open(SETTINGS_FILE, 'w')
+  if f then
+    f:write(wezterm.json_encode(data))
+    f:close()
+  end
+end
+
+local function scheme_names()
+  local names = {}
+  for name in pairs(wezterm.get_builtin_color_schemes()) do table.insert(names, name) end
+  table.sort(names)
+  table.insert(names, 1, 'Dracula (custom)')
+  return names
+end
+
+local function list(values, fmt)
+  local out = {}
+  for _, v in ipairs(values) do table.insert(out, { v, fmt and fmt(v) or tostring(v) }) end
+  return out
+end
+
+local SETTINGS_SECTIONS = {
+  { id = 'general', title = { en = 'GENERAL', es = 'GENERAL' } },
+  { id = 'look',    title = { en = 'LOOK',    es = 'APARIENCIA' } },
+}
+
+local SETTINGS_PAGE = {
+  { id = 'lang', section = 'general', label = { en = 'Language', es = 'Idioma' },
+    values = function() return { { 'en', 'English' }, { 'es', 'Español' } } end,
+    current = function() return HELP_LANG end },
+  { id = 'toasts', section = 'general', label = { en = 'Claude notifications', es = 'Avisos de Claude' },
+    values = function() return { { true, tr { en = 'on', es = 'sí' } }, { false, tr { en = 'off', es = 'no' } } } end,
+    current = function() return CLAUDE_TOASTS end },
+  { id = 'opacity', section = 'look', label = { en = 'Window opacity', es = 'Opacidad de la ventana' },
+    values = function()
+      return list({ 0.6, 0.7, 0.75, 0.82, 0.9, 1.0 }, function(v) return math.floor(v * 100 + 0.5) .. '%' end)
+    end,
+    current = function() return config.window_background_opacity end },
+  { id = 'font_size', section = 'look', label = { en = 'Font size', es = 'Tamaño de fuente' },
+    values = function() return list({ 11, 12, 13, 14, 15, 16 }) end,
+    current = function() return config.font_size end },
+  { id = 'color_scheme', section = 'look', label = { en = 'Color scheme', es = 'Esquema de colores' },
+    values = function() return list(scheme_names()) end,
+    current = function() return config.color_scheme end, live = true },
+}
+
+local function value_label(setting, value)
+  for _, v in ipairs(setting.values()) do
+    if v[1] == value then return v[2] end
+  end
+  return tostring(value)
+end
+
+local show_settings -- se define abajo; la lista de valores vuelve a la página
+
+local function show_values(window, pane, setting)
+  local current = setting.current()
+  local choices = {}
+  for _, v in ipairs(setting.values()) do
+    local mark = v[1] == current and '●' or ' '
+    table.insert(choices, { id = tostring(v[1]), label = wezterm.format {
+      { Foreground = { Color = '#bd93f9' } }, { Text = ' ' .. mark .. '  ' },
+      { Foreground = { Color = '#c0c4d6' } }, { Text = v[2] },
+    } })
+  end
+  help_opened(window, pane)
+  window:perform_action(act.InputSelector {
+    title = wezterm.nerdfonts.md_cog .. ' ' .. tr(setting.label),
+    choices = choices,
+    fuzzy = true,
+    fuzzy_description = wezterm.nerdfonts.md_cog .. '  ' .. tr(setting.label) .. ': ',
+    action = wezterm.action_callback(function(win, p, id)
+      help_closed(win, pane:pane_id())
+      if not id then return end
+      local value
+      for _, v in ipairs(setting.values()) do
+        if tostring(v[1]) == id then value = v[1] end
+      end
+      if value == nil then return end
+      save_setting(setting.id, value)
+      if setting.live then
+        local overrides = win:get_config_overrides() or {}
+        overrides[setting.id] = value
+        win:set_config_overrides(overrides)
+        show_values(win, p, setting)
+        return
+      end
+      if setting.id == 'opacity' then set_opacity(win, nil) end
+      wezterm.reload_configuration()
+    end),
+  }, pane)
+end
+
+show_settings = function(window, pane)
+  local row_cols = math.max(40, math.min(80, pane:get_dimensions().cols - 8))
+  local choices = {}
+  for _, section in ipairs(SETTINGS_SECTIONS) do
+    table.insert(choices, { id = 'header:' .. section.id, label = help_header(section, row_cols) })
+    for _, setting in ipairs(SETTINGS_PAGE) do
+      if setting.section == section.id then
+        local value = value_label(setting, setting.current())
+        local name_cols = 30
+        table.insert(choices, { id = 'setting:' .. setting.id, label = wezterm.format {
+          { Foreground = { Color = '#bd93f9' } }, { Text = ' ' .. wezterm.nerdfonts.md_cog .. '  ' },
+          { Foreground = { Color = '#c0c4d6' } },
+          { Text = pad(fit(tr(setting.label), name_cols), name_cols)
+            .. pad(fit(value, row_cols - 4 - name_cols - MARK_COLS - 1), row_cols - 4 - name_cols - MARK_COLS - 1)
+            .. ' ' .. RET .. ' ' },
+        } })
+      end
+    end
+  end
+  help_opened(window, pane)
+  window:perform_action(act.InputSelector {
+    title = wezterm.nerdfonts.md_cog .. ' ' .. tr { en = 'Settings', es = 'Ajustes' },
+    choices = choices,
+    fuzzy = true,
+    fuzzy_description = wezterm.nerdfonts.md_cog .. '  ' .. string.format(tr {
+      en = 'Settings  ·  %s changes the value  ·  Esc closes: ',
+      es = 'Ajustes  ·  %s cambia el valor  ·  Esc cierra: ',
+    }, RET),
+    action = wezterm.action_callback(function(win, p, id)
+      help_closed(win, pane:pane_id())
+      for _, setting in ipairs(SETTINGS_PAGE) do
+        if id == 'setting:' .. setting.id then show_values(win, p, setting) end
+      end
+    end),
+  }, pane)
+end
+
+table.insert(KEYMAP, 1, { group = 'wezterm', section = 'help', id = 'action:settings',
+  keys = wezterm.nerdfonts.md_cog .. ' Settings',
+  desc = { en = 'Language, notifications, opacity, font, colors', es = 'Idioma, avisos, opacidad, fuente, colores' },
+  action = wezterm.action_callback(function(window, pane) show_settings(window, pane) end) })
 
 table.insert(KEYMAP, 1, wez('help', 'F1', { en = 'Show this help', es = 'Mostrar esta ayuda' },
   'F1', nil, wezterm.action_callback(show_help)))
