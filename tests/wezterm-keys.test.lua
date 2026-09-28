@@ -787,6 +787,98 @@ do
     io.write('SKIP: python3 not installed, link regexes not checked against samples\n')
   end
 
+  -- The fake WSL: `git remote get-url origin` answers `remote` (nil = not a repo), and
+  -- `test -f <path>` succeeds for the paths in `existing`.
+  local function answer(remote, existing)
+    child_calls, opened = {}, {}
+    child_answer = function(argv)
+      local i = 1
+      while argv[i] and argv[i] ~= '--' do i = i + 1 end
+      if argv[i + 1] == 'git' then
+        if remote then return true, remote .. '\n', '' end
+        return false, '', 'fatal: not a git repository'
+      end
+      if argv[i + 1] == 'test' then return (existing or {})[argv[i + 3]] == true, '', '' end
+      return false, '', ''
+    end
+  end
+  local function link_pane(cwd)
+    local p = { splits = {} }
+    function p:get_current_working_dir() return cwd and { file_path = '/wsl.localhost/Ubuntu' .. cwd } or nil end
+    function p:split(args) table.insert(self.splits, args); return {} end
+    function p:pane_id() return 1 end
+    return p
+  end
+  local function toast_window()
+    local w = fake_window(); w.toasts = {}
+    function w:toast_notification(_, msg) table.insert(self.toasts, msg) end
+    return w
+  end
+
+  links_settings(nil)
+  check(handlers['open-uri'] ~= nil, 'no open-uri handler')
+  if handlers['open-uri'] then
+    for _, remote in ipairs({ 'https://github.com/Y4rd13/terminal-ricing.git', 'git@github.com:Y4rd13/terminal-ricing.git',
+                              'https://github.com/Y4rd13/terminal-ricing', 'ssh://git@github.com/Y4rd13/terminal-ricing.git' }) do
+      answer(remote)
+      local ret = handlers['open-uri'](toast_window(), link_pane('/home/me/proj'), 'ghref:21')
+      check(ret == false and opened[1] == 'https://github.com/Y4rd13/terminal-ricing/issues/21',
+        'ghref:21 with remote ' .. remote .. ' opened ' .. tostring(opened[1]))
+    end
+    answer('https://github.com/o/r.git')
+    handlers['open-uri'](toast_window(), link_pane('/home/me/my proj'), 'ghref:3')
+    check(child_calls[1] and child_calls[1][4] == '--cd' and child_calls[1][5] == '/home/me/my proj',
+      'git did not run in the pane folder')
+
+    for _, case in ipairs({
+      { 'https://gitlab.com/o/r.git', '/home/me/proj', 'a GitLab remote' },
+      { nil, '/home/me/proj', 'a folder that is not a repo' },
+      { 'https://github.com/o/r.git', nil, 'a pane with no known folder' },
+      { 'https://github.com.evil.io/o/r.git', '/home/me/proj', 'a look-alike host' },
+    }) do
+      answer(case[1])
+      local w = toast_window()
+      local ret = handlers['open-uri'](w, link_pane(case[2]), 'ghref:5')
+      check(ret == false and #opened == 0 and #w.toasts == 1, case[3] .. ' opened something or gave no toast')
+    end
+
+    local function edit(literal, uri, cwd, existing)
+      links_settings(literal)
+      answer(nil, existing)
+      local w, p = toast_window(), link_pane(cwd)
+      return handlers['open-uri'](w, p, uri), w, p
+    end
+    local ret, w, p = edit("{ editor = 'nvim' }", 'edit:src/app.ts:42', '/home/me/proj', { ['/home/me/proj/src/app.ts'] = true })
+    local s = p.splits[1]
+    check(ret == false and #p.splits == 1 and s.direction == 'Right', 'nvim: file:line did not split to the right')
+    check(s and s.domain and s.domain.DomainName == 'WSL:Ubuntu', 'the editor split is not in the WSL domain')
+    check(s and s.args[1] == 'bash' and s.args[2] == '-lc' and s.args[3] == "exec nvim +42 '/home/me/proj/src/app.ts'",
+      'nvim: wrong command ' .. tostring(s and s.args[3]))
+    ret, w, p = edit("{ editor = 'micro' }", 'edit:./a/b.py:7:3', '/home/me/proj', { ['/home/me/proj/a/b.py'] = true })
+    check(p.splits[1] and p.splits[1].args[3] == "exec micro +7 '/home/me/proj/a/b.py'",
+      'micro: wrong command ' .. tostring(p.splits[1] and p.splits[1].args[3]))
+    ret, w, p = edit("{ editor = 'code' }", 'edit:/etc/x.conf:9', nil, { ['/etc/x.conf'] = true })
+    local last = child_calls[#child_calls]
+    check(ret == false and #p.splits == 0 and last and last[5] == 'code' and last[6] == '-g' and last[7] == '/etc/x.conf:9',
+      'code: file:line did not run code -g /etc/x.conf:9')
+    for _, literal in ipairs({ '{}', "{ editor = 'vim' }", "{ editor = { 'code' } }" }) do
+      ret, w, p = edit(literal, 'edit:a.lua:1', '/p', { ['/p/a.lua'] = true })
+      check(p.splits[1] and p.splits[1].args[3]:find('^exec nvim ') ~= nil,
+        'editor setting ' .. literal .. ' did not fall back to nvim')
+    end
+    ret, w, p = edit("{ editor = 'nvim' }", 'edit:gone.lua:3', '/p', {})
+    check(ret == false and #p.splits == 0 and #w.toasts == 1 and w.toasts[1]:find('gone.lua', 1, true) ~= nil,
+      'a missing file opened or gave no toast naming it')
+    ret, w, p = edit("{ editor = 'nvim' }", 'edit:a.lua:3', nil, { ['/p/a.lua'] = true })
+    check(#p.splits == 0 and #w.toasts == 1, 'a relative path with no known folder opened something')
+    ret, w, p = edit("{ editor = 'nvim' }", "edit:it's.lua:1", '/p', { ["/p/it's.lua"] = true })
+    check(p.splits[1] and p.splits[1].args[3] == [[exec nvim +1 '/p/it'\''s.lua']],
+      'a quote in the path is not escaped for bash: ' .. tostring(p.splits[1] and p.splits[1].args[3]))
+    answer(nil)
+    check(handlers['open-uri'](toast_window(), link_pane('/p'), 'https://example.com') == nil,
+      'a normal URL no longer reaches the default browser action')
+  end
+
   -- (Tasks 2 and 3 add their checks above this line.)
   -- Back to no settings file and the default config: the checks below read `handlers`.
   os.remove(links_file); os.execute('rmdir "' .. links_dir .. '"')

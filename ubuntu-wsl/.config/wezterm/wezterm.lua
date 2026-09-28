@@ -447,10 +447,12 @@ local function linux_cwd(pane)
   return nil
 end
 
+-- Comillas simples para bash: no interpreta nada de lo que va dentro.
+local function sh_quote(s) return "'" .. s:gsub("'", "'\\''") .. "'" end
+
 local function prog_in(dir)
-  if dir then -- comillas simples: bash no interpreta el nombre de la carpeta
-    local quoted = "'" .. dir:gsub("'", "'\\''") .. "'"
-    return { 'bash', '-lc', 'cd ' .. quoted .. ' && exec zsh -l' }
+  if dir then
+    return { 'bash', '-lc', 'cd ' .. sh_quote(dir) .. ' && exec zsh -l' }
   end
   return nil -- sin carpeta conocida: default_prog (zsh en ~)
 end
@@ -1007,6 +1009,79 @@ if JIRA_REGEX then
   table.insert(config.hyperlink_rules, { regex = JIRA_REGEX, format = JIRA_FORMAT })
   table.insert(config.quick_select_patterns, JIRA_REGEX)
 end
+
+local EDITOR = ({ code = 'code', nvim = 'nvim', micro = 'micro' })[SETTINGS.editor] or 'nvim'
+
+-- Corre un comando en la distro sin shell de login (~0,15 s medido), con el argv como
+-- lista: no hay comillas que escapar. Devuelve si salió bien y la salida.
+local function wsl(dir, args)
+  local argv = { 'wsl.exe', '-d', WSL_DISTRO }
+  if dir then table.insert(argv, '--cd'); table.insert(argv, dir) end
+  table.insert(argv, '--')
+  for _, a in ipairs(args) do table.insert(argv, a) end
+  local called, ok, out = pcall(wezterm.run_child_process, argv)
+  return called and ok, (called and out) or ''
+end
+
+-- 'dueño/repo' si el remote es de github.com (https, ssh o scp), si no nil.
+local function github_repo(remote)
+  remote = (remote or ''):gsub('%s+$', '')
+  local path = remote:match('^https?://github%.com/(.+)$') or remote:match('^git@github%.com:(.+)$')
+    or remote:match('^ssh://git@github%.com/(.+)$')
+  if not path then return nil end
+  path = path:gsub('%.git$', ''):gsub('/$', '')
+  if path:match('^[%w%._-]+/[%w%._-]+$') then return path end
+  return nil
+end
+
+local function links_toast(window, msg) window:toast_notification('WezTerm', msg, nil, 4000) end
+
+local function open_in_editor(window, pane, path, line)
+  local abs = path
+  if path:sub(1, 1) ~= '/' then
+    local dir = linux_cwd(pane)
+    if not dir then
+      links_toast(window, string.format(tr { en = 'Unknown folder, cannot open %s',
+                                             es = 'Carpeta desconocida, no se puede abrir %s' }, path))
+      return
+    end
+    abs = dir .. '/' .. (path:gsub('^%./', ''))
+  end
+  if not wsl(nil, { 'test', '-f', abs }) then
+    links_toast(window, string.format(tr { en = '%s does not exist', es = '%s no existe' }, path))
+    return
+  end
+  if EDITOR == 'code' then
+    wezterm.background_child_process { 'wsl.exe', '-d', WSL_DISTRO, '--', 'code', '-g', abs .. ':' .. line }
+  else
+    -- Login: nvim puede vivir en ~/.local/bin. Al salir del editor el split se cierra.
+    pane:split { direction = 'Right', domain = WSL,
+                 args = { 'bash', '-lc', 'exec ' .. EDITOR .. ' +' .. line .. ' ' .. sh_quote(abs) } }
+  end
+end
+
+wezterm.on('open-uri', function(window, pane, uri)
+  local n = uri:match('^ghref:(%d+)$')
+  if n then
+    local dir = linux_cwd(pane)
+    local ok, out = false, ''
+    if dir then ok, out = wsl(dir, { 'git', 'remote', 'get-url', 'origin' }) end
+    local repo = ok and github_repo(out)
+    if repo then
+      -- /issues/N redirige a /pull/N cuando N es un PR, así sirve para los dos.
+      wezterm.open_with('https://github.com/' .. repo .. '/issues/' .. n)
+    else
+      links_toast(window, tr { en = 'No GitHub remote in this folder', es = 'Esta carpeta no tiene remote de GitHub' })
+    end
+    return false
+  end
+  local path, line = uri:match('^edit:(.-):(%d+):%d+$')
+  if not path then path, line = uri:match('^edit:(.-):(%d+)$') end
+  if path then
+    open_in_editor(window, pane, path, line)
+    return false
+  end
+end)
 
 config.keys = {}
 for _, k in ipairs(KEYMAP) do
