@@ -96,6 +96,10 @@ local config = wezterm.config_builder()
 -- Idioma de la ayuda de atajos (F1 y botón de la barra): 'en' o 'es'
 local HELP_LANG = 'en'
 
+-- Avisos de Windows cuando una sesión de Claude Code termina o te necesita (sección 8):
+-- false los apaga. Los colores de estado en las pestañas siguen igual.
+local CLAUDE_TOASTS = true
+
 -- =========================================================
 -- OPTIMIZACIONES
 -- =========================================================
@@ -754,6 +758,7 @@ end)
 local claude_seen = {} -- pane_id -> último estado ('waiting' | 'working' | 'idle' | false)
 
 wezterm.on('update-status', function(window)
+  if not CLAUDE_TOASTS then return end
   local mux_window = window:mux_window()
   -- El panel activo según el mux: window:active_pane() devuelve el overlay (F1, copy mode,
   -- un prompt) cuando hay uno abierto, y la sesión que estás mirando parecería otra.

@@ -555,7 +555,7 @@ Each tab running Claude Code shows its state in the glyph after the tab number a
 | `•` | green | finished while you were on another tab (clears when you open it) |
 | bell | red | needs you: a permission prompt or a question (needs the Claude Code hook that sets the `claude_state` user var) |
 
-When a session you are not looking at (another tab, or WezTerm not focused) finishes or starts needing you, WezTerm also raises a Windows notification, once per change.
+When a session you are not looking at (another tab, or WezTerm not focused) finishes or starts needing you, WezTerm also raises a Windows notification, once per change. Set `CLAUDE_TOASTS = false` at the top of `wezterm.lua` to turn these off (the tab colours stay).
 
 ### tmux
 

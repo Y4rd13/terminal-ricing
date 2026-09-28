@@ -86,9 +86,10 @@ f:close()
 local DEFAULT_LANG = "local HELP_LANG = 'en'"
 
 -- Loads the config with HELP_LANG set to `lang`; returns the config and its event handlers.
-local function load_config(lang)
+local function load_config(lang, extra_from, extra_to)
   handlers, plugin_loaded, before_plugin = {}, false, {}
   local src = source:gsub(DEFAULT_LANG, "local HELP_LANG = '" .. lang .. "'", 1)
+  if extra_from then src = src:gsub(extra_from, extra_to, 1) end
   local chunk = assert((loadstring or load)(src, '@' .. config_path))
   return chunk(), handlers
 end
@@ -481,6 +482,30 @@ do
   t = tick(9, true)
   check(#t == 1 and t[1]:find('API plenor', 1, true), 'the toast ignores the tab name set with Ctrl+Shift+E: '
     .. table.concat(t, ' | '))
+end
+
+-- CLAUDE_TOASTS at the top of the file turns the toasts off; true by default.
+do
+  local _, n = source:gsub("local CLAUDE_TOASTS = true", '')
+  check(n == 1, 'wezterm.lua does not set local CLAUDE_TOASTS = true exactly once')
+  local cfg_handlers
+  load_config('en', "local CLAUDE_TOASTS = true", "local CLAUDE_TOASTS = false")
+  cfg_handlers = handlers
+  local title = '◐ quiet'
+  local w = fake_window(nil, 43)
+  w.toasts = {}
+  function w:toast_notification(t, m) table.insert(self.toasts, t .. ': ' .. m) end
+  function w:mux_window()
+    local pn = { pane_id = function() return 77 end, get_title = function() return title end,
+                 get_user_vars = function() return {} end }
+    return { tabs = function() return { { panes = function() return { pn } end, get_title = function() return '' end } } end,
+             active_tab = function() return { active_pane = function() return { pane_id = function() return 1 end } end } end }
+  end
+  cfg_handlers['update-status'](w, fake_pane(1))
+  title = '✳ quiet'
+  cfg_handlers['update-status'](w, fake_pane(1))
+  check(#w.toasts == 0, 'with CLAUDE_TOASTS = false a finished background session still raised a toast')
+  load_config('en') -- back to the default config for the checks below
 end
 
 -- Tab titles change colour under the mouse. bar.wezterm ignores the hover flag, and WezTerm
