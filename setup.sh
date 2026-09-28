@@ -615,14 +615,19 @@ wezterm_settings_file() {
     local win_home
     win_home="$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" || return 1
     [[ -n "$win_home" && "$win_home" != *%* ]] || return 1
-    printf '%s/.wezterm-settings.json\n' "$(wslpath -u "$win_home")"
+    # Checked apart: inside printf's $(...) a failed wslpath would still print a path at /.
+    local unix_home
+    unix_home="$(wslpath -u "$win_home")" || return 1
+    [[ -n "$unix_home" ]] || return 1
+    printf '%s/.wezterm-settings.json\n' "$unix_home"
 }
 
 # merge_wezterm_settings <file> <editor> <jira_url> <jira_projects_csv>: sets those keys
-# (an empty argument leaves its key alone) and keeps every other key. Returns 1 without
-# python3, 2 when the file exists but is not a JSON object (left untouched).
+# (an empty argument leaves its key alone) and keeps every other key. Returns 2 when the
+# file exists but is not a JSON object (left untouched), 3 without python3, and 1 when
+# the write fails (any error Python does not catch exits 1).
 merge_wezterm_settings() {
-    command -v python3 &>/dev/null || return 1
+    command -v python3 &>/dev/null || return 3
     python3 - "$@" <<'PY'
 import json, os, sys
 path, editor, url, projects = sys.argv[1:5]
@@ -995,8 +1000,9 @@ step_execute() {
             merge_wezterm_settings "$settings_file" "$SEL_LINK_EDITOR" "$SEL_JIRA_URL" "$SEL_JIRA_PROJECTS" || rc=$?
             case "$rc" in
                 0) ok "WezTerm link settings saved to ${settings_file}" ;;
-                1) warn "python3 not found: WezTerm link settings not saved" ;;
-                *) warn "${settings_file} is not valid JSON: left untouched, link settings not saved" ;;
+                2) warn "${settings_file} is not valid JSON: left untouched, link settings not saved" ;;
+                3) warn "python3 not found: WezTerm link settings not saved" ;;
+                *) warn "could not write ${settings_file}: WezTerm link settings not saved" ;;
             esac
         else
             warn "Could not find %USERPROFILE%: WezTerm link settings not saved"

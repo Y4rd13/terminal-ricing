@@ -983,10 +983,18 @@ end)
 -- Las reglas son regex de Rust: sin lookaround. Los patrones de Quick Select van sin
 -- grupos de captura, porque WezTerm los une todos en una sola regex.
 -- =========================================================
--- Ruta con extensión (que empieza con letra, así 127.0.0.1:8080 no calza), :línea y
--- opcionalmente :columna. En la regla de click además va precedida de inicio de línea,
--- espacio, paréntesis o comilla, para no calzar dentro de una URL (host.dev:8080).
-local FILE_REGEX = [==[[\w./-]*\.[A-Za-z][A-Za-z0-9]*:\d+(?::\d+)?\b]==]
+-- Ruta, :línea y opcionalmente :columna. La ruta lleva una barra (src/app.ts, ./x.py) o,
+-- sin barra, una extensión de código conocida (setup.sh): así api.github.com:443 o
+-- db.internal:5432 no calzan. La extensión empieza con letra, así 127.0.0.1:8080 tampoco.
+-- En la regla de click además va precedida de inicio de línea, espacio, paréntesis o
+-- comilla, para no calzar dentro de una URL (http://host.dev/x.ts:8080).
+local FILE_EXTS = table.concat({
+  'lua', 'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'rs', 'go', 'sh', 'zsh', 'bash', 'md', 'json',
+  'jsonc', 'toml', 'yaml', 'yml', 'c', 'h', 'cc', 'cpp', 'hpp', 'java', 'kt', 'rb', 'php', 'cs',
+  'swift', 'sql', 'html', 'css', 'scss', 'vue', 'svelte', 'txt', 'conf', 'ini', 'xml', 'tf', 'ps1',
+}, '|')
+local FILE_REGEX = [==[(?:[\w.-]*/[\w./-]*\.[A-Za-z][A-Za-z0-9]*|[\w-][\w.-]*\.(?:]==] .. FILE_EXTS
+  .. [==[)):\d+(?::\d+)?\b]==]
 
 -- Regex y formato de la regla de Jira, o nil si los ajustes faltan o no validan. Los
 -- prefijos se validan antes de ir a la regex: solo mayúsculas y dígitos.

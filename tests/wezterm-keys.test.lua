@@ -767,6 +767,10 @@ do
     { 'listen 127.0.0.1:8080', '' },
     { 'at 10:30', '' },
     { 'Makefile:3', '' },
+    { 'connect to api.github.com:443', '' },
+    { 'db.internal:5432 is down', '' },
+    { 'see setup.sh:691', 'edit:setup.sh:691' },
+    { 'in config.json:12:4', 'edit:config.json:12:4' },
     { 'fix FTK-12 and OPS-3', 'https://x.atlassian.net/browse/FTK-12 https://x.atlassian.net/browse/OPS-3' },
     { 'UTF-8 and XFTK-12', '' },
   }

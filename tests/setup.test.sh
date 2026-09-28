@@ -272,6 +272,16 @@ if declare -F merge_wezterm_settings >/dev/null && command -v python3 >/dev/null
     merge_wezterm_settings "$wz" code "" ""
     json_is "$wz" '{"editor":"code"}'
     report "a missing settings file was not created: $(cat "$wz" 2>&1)" $?
+
+    # Each failure has its own code, so the installer names the real cause.
+    PATH=/nonexistent merge_wezterm_settings "$wz" code "" ""
+    rc=$?
+    [[ $rc -eq 3 ]]
+    report "merge_wezterm_settings without python3 returned $rc, expected 3" $?
+    merge_wezterm_settings "$sandbox/no-such-dir/settings.json" code "" "" 2>/dev/null
+    rc=$?
+    [[ $rc -eq 1 ]]
+    report "merge_wezterm_settings on an unwritable path returned $rc, expected 1" $?
 else
     printf 'SKIP: python3 not installed or merge_wezterm_settings missing\n'
 fi
@@ -311,6 +321,24 @@ if declare -F step_links >/dev/null && declare -F valid_jira >/dev/null; then
 else
     ko "setup.sh defines no step_links to drive"
 fi
+
+# A failed wslpath must fail the lookup, not yield /.wezterm-settings.json at the root.
+eval "$(sed -n '/^wezterm_settings_file() {/,/^}/p' "$SETUP")"
+if declare -F wezterm_settings_file >/dev/null; then
+    cmd.exe() { printf 'C:\\Users\\me\r\n'; }
+    wslpath() { return 1; }
+    out="$(wezterm_settings_file)"
+    rc=$?
+    [[ $rc -ne 0 ]]
+    report "wezterm_settings_file succeeded with a failed wslpath (printed '$out')" $?
+    wslpath() { printf '/mnt/c/Users/me\n'; }
+    out="$(wezterm_settings_file)"
+    [[ "$out" == "/mnt/c/Users/me/.wezterm-settings.json" ]]
+    report "wezterm_settings_file printed '$out'" $?
+    unset -f cmd.exe wslpath
+fi
+grep -q '3) warn "python3 not found' "$SETUP" && grep -q 'could not write' "$SETUP"
+report "step_execute does not tell a missing python3 apart from a failed write" $?
 
 grep -q '^    step_links$' "$SETUP"
 report "cmd_configure never calls step_links" $?
