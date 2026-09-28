@@ -527,6 +527,7 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 | Shortcut | Action |
 |----------|--------|
 | `F1` or click the **Keys** button in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one). English by default; set `HELP_LANG = 'es'` at the top of `wezterm.lua` for Spanish |
+| `F1` → **⚙ Settings** | Language, Claude notifications, window opacity, font size and colour scheme. Choices are saved to `%USERPROFILE%\.wezterm-settings.json` (outside this repo) and override the defaults in `wezterm.lua`; delete the file to go back to them |
 | `Ctrl+Shift+T` | New tab |
 | `Ctrl+Shift+E` | Rename the tab (empty name = automatic title; the Claude Code state still shows) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
