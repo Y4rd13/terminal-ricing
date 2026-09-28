@@ -528,6 +528,7 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 |----------|--------|
 | `F1` or click the **Keys** button in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one). English by default; set `HELP_LANG = 'es'` at the top of `wezterm.lua` for Spanish |
 | `Ctrl+Shift+T` | New tab |
+| `Ctrl+Shift+E` | Rename the tab (empty name = automatic title; the Claude Code state still shows) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+1`..`9` | Jump to tab 1-8 (`9` = last) |
 | `Ctrl+Shift+PageUp` / `PageDown` | Move tab left / right |
@@ -553,6 +554,8 @@ Each tab running Claude Code shows its state in the glyph after the tab number a
 | `✳` | dim grey | waiting for your next message |
 | `•` | green | finished while you were on another tab (clears when you open it) |
 | bell | red | needs you: a permission prompt or a question (needs the Claude Code hook that sets the `claude_state` user var) |
+
+When a session you are not looking at (another tab, or WezTerm not focused) finishes or starts needing you, WezTerm also raises a Windows notification, once per change. Set `CLAUDE_TOASTS = false` at the top of `wezterm.lua` to turn these off (the tab colours stay).
 
 ### tmux
 
