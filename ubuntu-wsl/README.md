@@ -528,6 +528,10 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 |----------|--------|
 | `F1` or click the **Keys** button in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one). English by default; set `HELP_LANG = 'es'` at the top of `wezterm.lua` for Spanish |
 | `F1` → **⚙ Settings** | Language, Claude notifications, window opacity, font size and colour scheme. Choices are saved to `%USERPROFILE%\.wezterm-settings.json` (outside this repo) and override the defaults in `wezterm.lua`; delete the file to go back to them |
+| Click `#N` | Open PR or issue N of the pane folder's GitHub repo (its `origin` remote) |
+| Click `KEY-123` | Open the Jira issue. The site and the project prefixes are `jira_url` and `jira_projects` in `%USERPROFILE%\.wezterm-settings.json`, written by `./setup.sh configure`; without them Jira keys are plain text |
+| Click `path/file.ext:line` | Open the file at that line in the editor chosen by `setup.sh` (`editor`: `code`, `nvim` or `micro`; `nvim` by default). nvim and micro open in a split to the right that closes when you quit |
+| `Ctrl+Shift+Space` | Quick Select: labels URLs, paths, hashes, `#N`, `file:line` and Jira keys; type the label to copy one |
 | `Ctrl+Shift+T` | New tab |
 | `Ctrl+Shift+E` | Rename the tab (empty name = automatic title; the Claude Code state still shows) |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
