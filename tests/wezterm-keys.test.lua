@@ -397,12 +397,16 @@ if fmt then
       inactive_tab_hover = { bg_color = 'hover-bg', fg_color = 'hover-fg' },
     } },
   }
-  local function tab(index, active, pane_title, tab_title)
+  local function tab(index, active, pane_title, tab_title, user_vars, unseen)
     return { tab_index = index, is_active = active, tab_title = tab_title or '',
-             active_pane = { title = pane_title } }
+             active_pane = { title = pane_title, user_vars = user_vars or {}, has_unseen_output = unseen or false } }
   end
   local function colours(items) return items[1].Background.Color, items[2].Foreground.Color end
-  local function text(items) return items[3].Text end
+  local function text(items)
+    local out = {}
+    for _, it in ipairs(items) do if it.Text then table.insert(out, it.Text) end end
+    return table.concat(out)
+  end
   local icon = package.loaded.wezterm.nerdfonts.pl_right_hard_divider
 
   local bg, fg = colours(fmt(tab(1, false, 'zsh'), {}, {}, conf, true, 28))
@@ -418,6 +422,55 @@ if fmt then
   check(t == '1 ' .. icon .. ' My tab  ', 'an explicit tab title is not used: ' .. t)
   t = text(fmt(tab(0, false, string.rep('a', 60)), {}, {}, conf, false, 28))
   check(t:find('…', 1, true) ~= nil and #t < 60, 'a long tab title is not truncated: ' .. t)
+
+  -- Claude Code sessions, minimal: only the state glyph and the tab's separator take the
+  -- state colour; the background and the name keep the tab's own colours. The title glyph
+  -- says working (◐ ◑ ◒ ◓ or a braille spinner) or idle (✳); the claude_state user var, set
+  -- by a Claude Code hook, says it needs you.
+  local nf = package.loaded.wezterm.nerdfonts
+  local function render(...) return fmt(tab(...), {}, {}, conf, false, 28) end
+  local function all_text(items)
+    local out = {}
+    for _, it in ipairs(items) do if it.Text then table.insert(out, it.Text) end end
+    return table.concat(out)
+  end
+  -- Colour in force where a Text item contains `needle`.
+  local function colour_of(items, needle)
+    local fg
+    for _, it in ipairs(items) do
+      if it.Foreground then fg = it.Foreground.Color end
+      if it.Text and it.Text:find(needle, 1, true) then return fg end
+    end
+  end
+  local function state_ok(items, mark, colour, label)
+    check(items[1].Background.Color == 'idle-bg', label .. ': the background changed')
+    check(colour_of(items, mark) == colour, label .. ': the mark is not ' .. colour .. ', got ' .. tostring((colour_of(items, mark))))
+    check(colour_of(items, icon) == colour, label .. ': the separator is not ' .. colour)
+    check(colour_of(items, 'Planforge') == 'idle-fg', label .. ': the name changed colour')
+  end
+
+  state_ok(render(1, false, '◐ Planforge local'), '◐', '#f1fa8c', 'working ◐')
+  state_ok(render(1, false, '◑ Planforge local'), '◑', '#f1fa8c', 'working ◑ (same colour in every spinner phase)')
+  state_ok(render(1, false, '⠋ Planforge local'), '⠋', '#f1fa8c', 'working with a braille spinner')
+
+  local items = render(1, false, '◐ Planforge local', nil, { claude_state = 'waiting' })
+  state_ok(items, nf.md_bell_ring, '#ff5555', 'waiting for you')
+  check(not all_text(items):find('◐', 1, true), 'a waiting tab still shows the stale spinner: ' .. all_text(items))
+
+  items = render(1, false, '✳ Planforge local', nil, nil, true)
+  state_ok(items, '•', '#50fa7b', 'finished while you were away')
+  check(not all_text(items):find('✳', 1, true), 'a finished tab still shows ✳')
+
+  items = render(1, false, '✳ Planforge local')
+  check(colour_of(items, '✳') == '#6272a4' and colour_of(items, icon) == 'idle-fg',
+    'an idle Claude tab does not show a dim ✳ with a plain separator')
+  items = fmt(tab(1, true, '✳ Planforge local', nil, nil, true), {}, {}, conf, false, 28)
+  check(colour_of(items, '✳') == '#6272a4', 'the active idle tab is marked as finished-while-away')
+  items = render(1, false, 'zsh', nil, nil, true)
+  check(colour_of(items, icon) == 'idle-fg' and colour_of(items, 'zsh') == 'idle-fg',
+    'a plain shell tab with new output is coloured like a Claude one')
+  check(all_text(render(2, false, '/home/me/notes.md')) == '3 ' .. icon .. ' notes  ',
+    'a plain tab title changed: ' .. all_text(render(2, false, '/home/me/notes.md')))
 end
 
 -- The tab-bar button is shown, a left click opens the help and suppresses the new tab.
