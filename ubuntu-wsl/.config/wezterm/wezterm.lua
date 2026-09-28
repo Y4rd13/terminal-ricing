@@ -458,7 +458,7 @@ for _, k in ipairs({
   table.insert(KEYMAP, k)
 end
 
--- Colores Dracula: un ícono y un color por grupo; el atajo en rosa, la descripción en gris.
+-- Colores Dracula: un ícono y un color por grupo; el texto de la fila, en gris.
 local HELP_GROUPS = {
   wezterm = { icon = wezterm.nerdfonts.dev_terminal,      color = '#bd93f9' },
   tmux    = { icon = wezterm.nerdfonts.cod_terminal_tmux, color = '#50fa7b' },
@@ -474,43 +474,50 @@ local HELP_SECTIONS = {
   { id = 'zsh',   title = { en = 'zsh · reference',  es = 'zsh · referencia' } },
 }
 
--- Cada fila pinta su propio fondo a todo el ancho: la ventana es semitransparente y, sin
--- esto, la lista se mezcla con lo que haya detrás.
-local HELP_BG = '#1e1f29'
-local KEYS_COLS, MARK_COLS = 22, 13
+-- Filas compactas (hasta 80 columnas) para que la marca de Enter quede cerca del texto.
+local KEYS_COLS, MARK_COLS = 22, 2
+local RET = wezterm.nerdfonts.md_keyboard_return
 
--- Ancho en celdas: un carácter UTF-8 por celda (íconos Nerd Font y flechas incluidos).
+-- Ancho en celdas: un carácter UTF-8 por celda (íconos Nerd Font incluidos).
 local function cells(s) return select(2, s:gsub('[^\128-\191]', '')) end
 local function pad(s, n) return s .. string.rep(' ', n - cells(s)) end
 
+-- Las filas de WezTerm terminan en la marca de Enter; las de tmux y zsh van tenues y sin
+-- marca (su título ya dice que son de referencia), igual que un rango como Ctrl+Shift+1..9.
+-- Después del ícono, todo va en un solo color: WezTerm marca la fila seleccionada
+-- invirtiendo los colores de cada tramo, y con uno solo se ve como un bloque parejo.
 local function help_row(k, row_cols)
   local g = HELP_GROUPS[k.group]
   local runnable = k.action ~= nil
-  local mark = runnable and '↵' or tr { en = '(reference)', es = '(referencia)' }
   local desc_cols = row_cols - 4 - KEYS_COLS - MARK_COLS - 1
   return wezterm.format {
-    { Background = { Color = HELP_BG } },
     { Foreground = { Color = g.color } }, { Text = ' ' .. g.icon .. '  ' },
-    { Foreground = { Color = '#ff79c6' } }, { Attribute = { Intensity = 'Bold' } },
-    { Text = pad(k.keys, KEYS_COLS) },
+    { Foreground = { Color = k.group == 'wezterm' and '#c0c4d6' or '#6272a4' } },
+    { Attribute = { Intensity = 'Bold' } }, { Text = pad(k.keys, KEYS_COLS) },
     { Attribute = { Intensity = 'Normal' } },
-    { Foreground = { Color = runnable and '#c0c4d6' or '#6272a4' } }, { Text = pad(tr(k.desc), desc_cols) },
-    { Foreground = { Color = runnable and '#bd93f9' or '#6272a4' } },
-    { Text = string.rep(' ', MARK_COLS - cells(mark)) .. mark .. ' ' },
+    { Text = pad(tr(k.desc), desc_cols) .. ' ' .. (runnable and RET or ' ') .. ' ' },
   }
 end
 
 local function help_header(section, row_cols)
   local text = ' ── ' .. tr(section.title):upper() .. ' '
   return wezterm.format {
-    { Background = { Color = HELP_BG } }, { Foreground = { Color = '#6272a4' } },
-    { Attribute = { Intensity = 'Bold' } },
+    { Foreground = { Color = '#6272a4' } }, { Attribute = { Intensity = 'Bold' } },
     { Text = text .. string.rep('─', row_cols - cells(text) - 1) .. ' ' },
   }
 end
 
+-- La ventana es semitransparente: mientras la ayuda está abierta se vuelve opaca, para que
+-- la lista no se mezcle con lo que hay detrás, y al cerrarla (Enter o Esc) recupera lo que
+-- tenía. Pintar un fondo por fila no sirve: parpadea al mover la selección.
+local function set_opacity(window, value)
+  local overrides = window:get_config_overrides() or {}
+  overrides.window_background_opacity = value
+  window:set_config_overrides(overrides)
+end
+
 local function show_help(window, pane)
-  local row_cols = math.max(60, pane:get_dimensions().cols - 8)
+  local row_cols = math.max(40, math.min(80, pane:get_dimensions().cols - 8))
   local choices, run, entries = {}, {}, 0
   for _, section in ipairs(HELP_SECTIONS) do
     table.insert(choices, { id = 'header:' .. section.id, label = help_header(section, row_cols) })
@@ -523,16 +530,19 @@ local function show_help(window, pane)
       end
     end
   end
+  local opacity_before = (window:get_config_overrides() or {}).window_background_opacity
+  set_opacity(window, 1.0)
   window:perform_action(act.InputSelector {
     -- Título de la pestaña temporal: distinto del botón "Keys" para no verlo dos veces.
     title = wezterm.nerdfonts.md_keyboard .. ' ' .. tr { en = 'Help', es = 'Ayuda' },
     choices = choices,
     fuzzy = true,
     fuzzy_description = wezterm.nerdfonts.md_keyboard .. '  ' .. string.format(tr {
-      en = 'Search %d keys  ·  ↵ runs WezTerm ones  ·  Esc closes: ',
-      es = 'Buscar entre %d atajos  ·  ↵ ejecuta los de WezTerm  ·  Esc cierra: ',
-    }, entries),
+      en = 'Search %d keys  ·  %s runs WezTerm ones  ·  Esc closes: ',
+      es = 'Buscar entre %d atajos  ·  %s ejecuta los de WezTerm  ·  Esc cierra: ',
+    }, entries, RET),
     action = wezterm.action_callback(function(win, p, id)
+      set_opacity(win, opacity_before)
       if id and run[id] then win:perform_action(run[id], p) end
     end),
   }, pane)
@@ -540,6 +550,27 @@ end
 
 table.insert(KEYMAP, 1, wez('help', 'F1', { en = 'Show this help', es = 'Mostrar esta ayuda' },
   'F1', nil, wezterm.action_callback(show_help)))
+
+-- Transparencia: Ctrl+Alt+Up/Down de a 5% entre 30% y 100%, y Ctrl+Alt+0 vuelve al valor
+-- de config.window_background_opacity. Se guarda como override de la ventana, así que la
+-- ayuda (que la vuelve opaca mientras está abierta) la recupera al cerrarse.
+local OPACITY_STEP, OPACITY_MIN = 0.05, 0.3
+
+local function change_opacity(delta)
+  return wezterm.action_callback(function(window)
+    local current = (window:get_config_overrides() or {}).window_background_opacity
+      or config.window_background_opacity
+    local value = math.min(1.0, math.max(OPACITY_MIN, current + delta))
+    set_opacity(window, math.floor(value * 100 + 0.5) / 100)
+  end)
+end
+
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+Up', { en = 'Make the window more opaque', es = 'Ventana menos transparente' },
+  'UpArrow', 'CTRL|ALT', change_opacity(OPACITY_STEP)))
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+Down', { en = 'Make the window more transparent', es = 'Ventana más transparente' },
+  'DownArrow', 'CTRL|ALT', change_opacity(-OPACITY_STEP)))
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+0', { en = 'Reset the window opacity', es = 'Volver a la transparencia de la config' },
+  '0', 'CTRL|ALT', wezterm.action_callback(function(window) set_opacity(window, nil) end)))
 
 -- El botón: cápsula morada con ícono de teclado, rosa al pasar el mouse. El fondo de los
 -- bordes redondeados es el de las pestañas inactivas, para que calce con la barra.

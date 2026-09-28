@@ -40,8 +40,17 @@ package.loaded.wezterm = {
   log_info = function() end,
   mux = { all_windows = function() return {} end, spawn_window = function() end },
   GLOBAL = {},
-  -- A Nerd Font glyph is one cell wide; the stub keeps that so row widths add up.
-  nerdfonts = setmetatable({}, { __index = function() return '*' end }),
+  -- A Nerd Font glyph is one cell wide; the stub gives each name its own one-cell
+  -- private-use character, so row widths add up and a test can look for a given glyph.
+  nerdfonts = setmetatable({}, {
+    __index = function(t, name)
+      local n = 0
+      for _ in pairs(t) do n = n + 1 end
+      local glyph = string.char(0xEE, 0x80 + math.floor(n / 64), 0x80 + n % 64) -- U+E000 + n
+      rawset(t, name, glyph)
+      return glyph
+    end,
+  }),
   on = function(event, fn) handlers[event] = fn end,
   plugin = { require = function() return { apply_to_config = function() end } end },
   time = { call_after = function() end },
@@ -83,10 +92,12 @@ local function check(cond, msg)
   end
 end
 
-local function fake_window()
-  local w = { performed = {} }
+local function fake_window(overrides)
+  local w = { performed = {}, overrides = overrides }
   -- A nil action would be lost by table.insert and look like "nothing performed".
   function w:perform_action(a, _) table.insert(self.performed, a == nil and 'nil action' or a) end
+  function w:get_config_overrides() return self.overrides end
+  function w:set_config_overrides(o) self.overrides = o end
   return w
 end
 
@@ -172,17 +183,18 @@ if help then
   help.action.fn(w, fake_pane(), nil, nil)
   check(#w.performed == 0, 'cancelling the help performed an action')
 
-  -- Readable over a transparent window: every row paints its own background, and all rows
-  -- share one width that fills most of the pane.
+  -- Rows paint no background of their own (the window turns opaque instead, see below;
+  -- a per-row background flickers as the selection moves), and share one compact width
+  -- so the Enter mark sits near its text, not at the far edge of a wide pane.
   local row_width
   for _, c in ipairs(help.choices) do
-    check(has_background(c.label), 'row ' .. c.id .. ' has no background of its own')
+    check(not has_background(c.label), 'row ' .. c.id .. ' paints its own background')
     local cw = width(plain(c.label))
     row_width = row_width or cw
     check(cw == row_width, 'row ' .. c.id .. ' is ' .. cw .. ' cells wide, the first row is ' .. row_width)
   end
-  check(row_width and row_width >= PANE_COLS - 12 and row_width <= PANE_COLS,
-    'rows are ' .. tostring(row_width) .. ' cells wide in a ' .. PANE_COLS .. '-column pane')
+  check(row_width and row_width >= 60 and row_width <= 90,
+    'rows are ' .. tostring(row_width) .. ' cells wide in a ' .. PANE_COLS .. '-column pane, expected 60-90')
 
   -- Sections: each entry sits under its own header, and Enter on a header does nothing.
   local section_of, current = {}, nil
@@ -203,25 +215,108 @@ if help then
     check(section_of[id] == s, id .. ' is under section ' .. tostring(section_of[id]) .. ', expected ' .. s)
   end
 
-  -- Runnable rows carry the Enter mark; tmux and zsh rows say they are reference only.
+  -- Runnable rows end in the Nerd Font Enter glyph; the others carry no mark and no
+  -- "(reference)" text: the tmux and zsh headers already say it.
+  local RET = package.loaded.wezterm.nerdfonts.md_keyboard_return
   local entries = 0
   for _, c in ipairs(help.choices) do
     if not is_header(c) then
       entries = entries + 1
       local text = plain(c.label)
       if c.id:find('|', 1, true) then
-        check(text:find('↵', 1, true) ~= nil, 'runnable row ' .. c.id .. ' has no ↵ mark')
+        check(text:find(RET, 1, true) ~= nil, 'runnable row ' .. c.id .. ' has no Enter mark')
       else
-        check(text:find('(reference)', 1, true) ~= nil and not text:find('↵', 1, true),
-          'reference row ' .. c.id .. ' is not marked (reference) without ↵')
+        check(not text:find(RET, 1, true) and not text:find('(reference)', 1, true),
+          'row ' .. c.id .. ' cannot run from the list but carries a mark: ' .. text)
       end
     end
   end
   check(plain(help.fuzzy_description):find(tostring(entries), 1, true) ~= nil,
     'the search line does not give the number of shortcuts (' .. entries .. ')')
+  check(plain(help.fuzzy_description):find(RET, 1, true) ~= nil,
+    'the search line does not show the Enter mark it explains')
+
+  -- WezTerm shows the selected row by swapping each stretch's colours, so everything after
+  -- the icon (shortcut, description, mark) uses one colour and the selection reads as one block.
+  for _, c in ipairs(help.choices) do
+    if not is_header(c) and type(c.label) == 'table' then
+      local colours, seen_text = {}, false
+      local fg
+      for _, item in ipairs(c.label) do
+        if type(item) == 'table' and item.Foreground then fg = item.Foreground.Color end
+        if type(item) == 'table' and item.Text then
+          if seen_text then colours[fg or 'default'] = true end
+          seen_text = true
+        end
+      end
+      local n = 0
+      for _ in pairs(colours) do n = n + 1 end
+      check(n == 1, 'row ' .. c.id .. ' uses ' .. n .. ' colours after the icon, so its selection is striped')
+    end
+  end
+
+  -- The window turns fully opaque while the help is open, and closing it by any path
+  -- (Enter on a row, Enter on a header, Esc) puts back exactly the overrides it had.
+  for _, close in ipairs({ { 'T|CTRL|SHIFT', 'Enter on a row' }, { 'header:tabs', 'Enter on a header' },
+                           { nil, 'Esc' } }) do
+    for _, before in ipairs({ { nil, 'no override' }, { 0.5, 'an opacity override of 0.5' } }) do
+      local w = fake_window(before[1] and { window_background_opacity = before[1] } or nil)
+      f1.action.fn(w, fake_pane())
+      local opened = w.performed[1]
+      check((w.overrides or {}).window_background_opacity == 1.0,
+        'opening the help with ' .. before[2] .. ' does not make the window opaque')
+      if opened and opened.kind == 'InputSelector' then
+        opened.arg.action.fn(w, fake_pane(), close[1], close[1] and '' or nil)
+        check((w.overrides or {}).window_background_opacity == before[1],
+          close[2] .. ' with ' .. before[2] .. ' left the opacity at '
+            .. tostring((w.overrides or {}).window_background_opacity))
+      end
+    end
+  end
 
   -- The overlay's tab title is not the button's text, so "Keys" is not shown twice.
   check(not plain(help.title):find('Keys', 1, true), 'the help tab is titled like the Keys button')
+end
+
+-- Ctrl+Alt+Up / Down change the window opacity by 5% within 30-100%, and Ctrl+Alt+0 drops
+-- the override so the config's own value (window_background_opacity) applies again.
+local function binding(cfg, key, mods)
+  for _, k in ipairs(cfg.keys or {}) do
+    if k.key == key and k.mods == mods then return k end
+  end
+end
+
+local function press(k, overrides)
+  local w = fake_window(overrides)
+  k.action.fn(w, fake_pane())
+  return (w.overrides or {}).window_background_opacity
+end
+
+local function near(a, b) return a ~= nil and b ~= nil and math.abs(a - b) < 1e-9 end
+
+local up, down, reset = binding(config, 'UpArrow', 'CTRL|ALT'), binding(config, 'DownArrow', 'CTRL|ALT'),
+  binding(config, '0', 'CTRL|ALT')
+check(up and down and reset, 'Ctrl+Alt+Up, Ctrl+Alt+Down or Ctrl+Alt+0 is not bound')
+if up and down and reset then
+  local base = config.window_background_opacity
+  check(near(press(up, nil), base + 0.05), 'Ctrl+Alt+Up from the config value does not add 5%')
+  check(near(press(down, nil), base - 0.05), 'Ctrl+Alt+Down from the config value does not take 5%')
+  check(near(press(up, { window_background_opacity = 0.5 }), 0.55), 'Ctrl+Alt+Up does not start from the current opacity')
+  check(near(press(up, { window_background_opacity = 0.98 }), 1.0), 'Ctrl+Alt+Up goes past 100%')
+  check(near(press(down, { window_background_opacity = 0.32 }), 0.3), 'Ctrl+Alt+Down goes below 30%')
+  check(press(reset, { window_background_opacity = 0.5 }) == nil, 'Ctrl+Alt+0 does not return to the config value')
+end
+if help then
+  for _, c in ipairs(help.choices) do
+    if c.id:find('|CTRL|ALT', 1, true) and not is_header(c) then
+      local section
+      for _, h in ipairs(help.choices) do
+        if is_header(h) then section = h.id end
+        if h == c then break end
+      end
+      check(section == 'header:help', c.id .. ' is not under Help & config')
+    end
+  end
 end
 
 -- The tab-bar button is shown, a left click opens the help and suppresses the new tab.

@@ -539,6 +539,8 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 | `Ctrl+Shift+Z` | Zoom/unzoom pane |
 | `Ctrl+Shift+W` | Close current pane |
 | `Ctrl+Shift+R` | Reload config |
+| `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Window more opaque / more transparent (5% steps, 30-100%) |
+| `Ctrl+Alt+0` | Reset window opacity to the config value |
 | `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout (manual only, no autosave) |
 
 ### tmux
