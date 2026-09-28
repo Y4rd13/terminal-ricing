@@ -259,7 +259,7 @@ if help then
   for _, c in ipairs(help.choices) do
     if is_header(c) then current = c.id:sub(8) else section_of[c.id] = current end
   end
-  for _, s in ipairs({ 'help', 'tabs', 'panes', 'tmux', 'zsh' }) do
+  for _, s in ipairs({ 'help', 'tabs', 'panes', 'links', 'tmux', 'zsh' }) do
     local h = by_id['header:' .. s]
     check(h ~= nil, 'the help has no header for section ' .. s)
     if h then
@@ -269,7 +269,7 @@ if help then
     end
   end
   for id, s in pairs({ ['F1|'] = 'help', ['T|CTRL|SHIFT'] = 'tabs', ['Y|CTRL|SHIFT'] = 'panes',
-                       ['s|LEADER'] = 'panes', ['r|CTRL|SHIFT'] = 'help' }) do
+                       ['s|LEADER'] = 'panes', ['r|CTRL|SHIFT'] = 'help', ['Space|CTRL|SHIFT'] = 'links' }) do
     check(section_of[id] == s, id .. ' is under section ' .. tostring(section_of[id]) .. ', expected ' .. s)
   end
 
@@ -878,6 +878,15 @@ do
     check(handlers['open-uri'](toast_window(), link_pane('/p'), 'https://example.com') == nil,
       'a normal URL no longer reaches the default browser action')
   end
+
+  local mcfg = links_settings("{ editor = 'micro' }")
+  local mf1 = binding(mcfg, 'F1', nil)
+  local mhelp = mf1 and open_help(function(w) mf1.action.fn(w, fake_pane()) end)
+  local names_editor = false
+  for _, c in ipairs(mhelp and mhelp.choices or {}) do
+    if plain(c.label):find('micro', 1, true) then names_editor = true end
+  end
+  check(names_editor, 'the file:line row of the help does not name the chosen editor (micro)')
 
   -- (Tasks 2 and 3 add their checks above this line.)
   -- Back to no settings file and the default config: the checks below read `handlers`.

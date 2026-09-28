@@ -590,6 +590,7 @@ local HELP_SECTIONS = {
   { id = 'help',  title = { en = 'HELP & CONFIG',    es = 'AYUDA Y CONFIG' } },
   { id = 'tabs',  title = { en = 'TABS',             es = 'PESTAÑAS' } },
   { id = 'panes', title = { en = 'PANES & LAYOUT',   es = 'PANELES Y LAYOUT' } },
+  { id = 'links', title = { en = 'LINKS',            es = 'ENLACES' } },
   { id = 'tmux',  title = { en = 'TMUX · REFERENCE', es = 'TMUX · REFERENCIA' } },
   { id = 'zsh',   title = { en = 'ZSH · REFERENCE',  es = 'ZSH · REFERENCIA' } },
 }
@@ -1082,6 +1083,20 @@ wezterm.on('open-uri', function(window, pane, uri)
     return false
   end
 end)
+
+for _, k in ipairs({
+  { group = 'wezterm', section = 'links', keys = 'Click #N',
+    desc = { en = "PR or issue N of this folder's GitHub repo", es = 'PR o issue N del repo de GitHub de la carpeta' } },
+  { group = 'wezterm', section = 'links', keys = 'Click KEY-123',
+    desc = { en = 'Jira issue (site and prefixes from setup.sh)', es = 'Tarea de Jira (sitio y prefijos de setup.sh)' } },
+  { group = 'wezterm', section = 'links', keys = 'Click file:line',
+    desc = { en = 'Open it in ' .. EDITOR .. ' at that line', es = 'Abrirlo en ' .. EDITOR .. ' en esa línea' } },
+}) do
+  table.insert(KEYMAP, k)
+end
+table.insert(KEYMAP, wez('links', 'Ctrl+Shift+Space',
+  { en = 'Quick Select: copy a link, path, #N or key', es = 'Quick Select: copiar un link, ruta, #N o clave' },
+  'Space', 'CTRL|SHIFT', act.QuickSelect))
 
 config.keys = {}
 for _, k in ipairs(KEYMAP) do
