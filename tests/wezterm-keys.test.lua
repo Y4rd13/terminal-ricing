@@ -60,10 +60,15 @@ package.loaded.wezterm = {
   }),
   -- Records which handlers exist before the tab-bar plugin loads: WezTerm runs only the
   -- first format-tab-title handler, so ours must come before bar.wezterm's.
-  -- Several handlers can share an event (WezTerm runs them in order); keep them all.
+  -- As WezTerm does: handlers of one event run in order and a `false` stops the chain,
+  -- except format-tab-title, where only the first one registered is ever used.
   on = function(event, fn)
     local prev = handlers[event]
-    handlers[event] = prev and function(...) prev(...); return fn(...) end or fn
+    if prev and event == 'format-tab-title' then return end
+    handlers[event] = prev and function(...)
+      if prev(...) == false then return false end
+      return fn(...)
+    end or fn
     if not plugin_loaded then before_plugin[event] = true end
   end,
   plugin = { require = function()
@@ -120,7 +125,10 @@ local function fake_window(overrides, id)
   -- What every real window answers; tests that care override these.
   function w:active_pane() return { pane_id = function() return 1 end } end
   function w:is_focused() return true end
-  function w:mux_window() return { tabs = function() return {} end } end
+  function w:mux_window()
+    return { tabs = function() return {} end,
+             active_tab = function() return { active_pane = function() return { pane_id = function() return 1 end } end } end }
+  end
   function w:toast_notification() end
   return w
 end
@@ -413,28 +421,34 @@ end
 -- never twice for one change, never for the pane you are looking at, never for a plain shell.
 do
   local status = handlers['update-status']
-  local panes = {}
+  local panes, tab_names = {}, {}
   local function pane(id, title, vars)
     panes[id] = { title = title, vars = vars or {} }
   end
-  local function fake(active_id, focused)
+  -- active_id: the tab's active pane (mux); gui_active: what window:active_pane() returns,
+  -- which is an overlay's own pane while F1, copy mode or a prompt is open on it.
+  local function fake(active_id, focused, gui_active)
     local w = fake_window(nil, 42)
     w.toasts = {}
     function w:toast_notification(title, msg) table.insert(self.toasts, title .. ': ' .. msg) end
     function w:is_focused() return focused end
-    function w:active_pane() return { pane_id = function() return active_id end } end
+    function w:active_pane() return { pane_id = function() return gui_active or active_id end } end
     function w:mux_window()
-      local list = {}
+      local tabs = {}
       for id, p in pairs(panes) do
-        table.insert(list, { pane_id = function() return id end, get_title = function() return p.title end,
-                             get_user_vars = function() return p.vars end })
+        local pn = { pane_id = function() return id end, get_title = function() return p.title end,
+                     get_user_vars = function() return p.vars end }
+        table.insert(tabs, { panes = function() return { pn } end, get_title = function() return tab_names[id] or '' end })
       end
-      return { tabs = function() return { { panes = function() return list end } } end }
+      return {
+        tabs = function() return tabs end,
+        active_tab = function() return { active_pane = function() return { pane_id = function() return active_id end } end } end,
+      }
     end
     return w
   end
-  local function tick(active_id, focused)
-    local w = fake(active_id, focused)
+  local function tick(active_id, focused, gui_active)
+    local w = fake(active_id, focused, gui_active)
     status(w, fake_pane(active_id))
     return w.toasts
   end
@@ -450,6 +464,8 @@ do
   check(#tick(2, true) == 0, 'the session you are looking at raised a toast when it finished')
   pane(2, '◐ rtk-hook'); tick(2, true); pane(2, '✳ rtk-hook')
   check(#tick(2, false) == 1, 'the active session finished while WezTerm was not focused, and no toast came')
+  pane(2, '◐ rtk-hook'); tick(2, true); pane(2, '✳ rtk-hook')
+  check(#tick(2, true, 999) == 0, 'the session you are looking at, with F1 or copy mode open on it, raised a toast')
   pane(4, '◐ NeuralGT', { claude_state = 'waiting' })
   t = tick(9, true)
   check(#t == 1 and t[1]:find('NeuralGT', 1, true), 'a background session that needs you raised no toast: '
@@ -457,6 +473,14 @@ do
   check(#tick(9, true) == 0, 'a session still waiting raised a second toast')
   pane(3, 'zsh'); tick(9, true); pane(3, 'bash')
   check(#tick(9, true) == 0, 'a plain shell tab raised a toast')
+  pane(5, '◐ build'); tick(9, true); pane(5, '❯ ~/proj')
+  check(#tick(9, true) == 0, 'a Claude session that exited to a shell prompt with a glyph raised a toast')
+  pane(5, '✳ build'); tick(9, true)
+  check(#tick(9, true) == 0, 'a shell prompt glyph was read as a Claude state')
+  tab_names[6] = 'API plenor'; pane(6, '◐ Claude Code'); tick(9, true); pane(6, '✳ Claude Code')
+  t = tick(9, true)
+  check(#t == 1 and t[1]:find('API plenor', 1, true), 'the toast ignores the tab name set with Ctrl+Shift+E: '
+    .. table.concat(t, ' | '))
 end
 
 -- Tab titles change colour under the mouse. bar.wezterm ignores the hover flag, and WezTerm

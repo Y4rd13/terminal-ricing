@@ -18,7 +18,7 @@ local CLAUDE_SPINNER = { ['◐'] = true, ['◑'] = true, ['◒'] = true, ['◓']
 local function claude_glyph(title) return (title or ''):match('^(\226[\128-\191][\128-\191]) ') end
 
 -- 'waiting', 'working', 'idle' o nil (no es una sesión de Claude), a partir del título y las
--- variables de un panel. Lo usan el título de la pestaña y el aviso de Windows (sección 7).
+-- variables de un panel. Lo usan el título de la pestaña y el aviso de Windows (sección 8).
 local function claude_kind(title, user_vars)
   if (user_vars or {}).claude_state == 'waiting' then return 'waiting' end
   local glyph = claude_glyph(title)
@@ -718,32 +718,6 @@ table.insert(KEYMAP, wez('tabs', 'Ctrl+Shift+E',
     end),
   }))
 
--- Aviso de Windows cuando una sesión de Claude Code que no estás mirando termina (trabajando
--- -> idle) o empieza a necesitarte (claude_state = waiting). "No la estás mirando": es otro
--- panel, o la ventana de WezTerm no tiene el foco. La primera vez que se ve un panel solo
--- se anota su estado, y cada cambio avisa una vez.
-local claude_seen = {} -- pane_id -> último estado ('waiting' | 'working' | 'idle' | false)
-
-wezterm.on('update-status', function(window)
-  local active = window:active_pane():pane_id()
-  local focused = window:is_focused()
-  for _, tab in ipairs(window:mux_window():tabs()) do
-    for _, pane in ipairs(tab:panes()) do
-      local id, title = pane:pane_id(), pane:get_title()
-      local kind = claude_kind(title, pane:get_user_vars()) or false
-      local before = claude_seen[id]
-      claude_seen[id] = kind
-      if before ~= nil and kind ~= before and (id ~= active or not focused) then
-        local name = title:gsub('^\226[\128-\191][\128-\191] ', '')
-        if kind == 'idle' and before == 'working' then
-          window:toast_notification('Claude Code', string.format(tr { en = '%s finished', es = '%s terminó' }, name))
-        elseif kind == 'waiting' then
-          window:toast_notification('Claude Code', string.format(tr { en = '%s needs you', es = '%s te necesita' }, name))
-        end
-      end
-    end
-  end
-end)
 
 -- El botón: cápsula morada con ícono de teclado, rosa al pasar el mouse. El fondo de los
 -- bordes redondeados es el de las pestañas inactivas, para que calce con la barra.
@@ -768,6 +742,45 @@ wezterm.on('new-tab-button-click', function(window, pane, button)
   if button ~= 'Left' then return end
   show_help(window, pane)
   return false
+end)
+
+-- =========================================================
+-- 8) Avisos de Claude Code: aviso de Windows cuando una sesión que no estás mirando termina
+--    (trabajando -> idle) o empieza a necesitarte (claude_state = waiting). "No la estás
+--    mirando": es otro panel, o la ventana de WezTerm no tiene el foco. La primera vez que
+--    se ve un panel solo se anota su estado, y cada cambio avisa una vez. El nombre es el
+--    de la pestaña si la renombraste (Ctrl+Shift+E), si no el título sin el glifo.
+-- =========================================================
+local claude_seen = {} -- pane_id -> último estado ('waiting' | 'working' | 'idle' | false)
+
+wezterm.on('update-status', function(window)
+  local mux_window = window:mux_window()
+  -- El panel activo según el mux: window:active_pane() devuelve el overlay (F1, copy mode,
+  -- un prompt) cuando hay uno abierto, y la sesión que estás mirando parecería otra.
+  local active = mux_window:active_tab():active_pane():pane_id()
+  local focused = window:is_focused()
+  local seen = {}
+  for _, tab in ipairs(mux_window:tabs()) do
+    for _, pane in ipairs(tab:panes()) do
+      local id, title = pane:pane_id(), pane:get_title()
+      local kind = claude_kind(title, pane:get_user_vars()) or false
+      local before = claude_seen[id]
+      seen[id] = kind
+      if before ~= nil and kind ~= before and (id ~= active or not focused) then
+        local name = tab:get_title()
+        if name == '' then
+          local glyph = claude_glyph(title)
+          name = glyph and title:sub(#glyph + 2) or title
+        end
+        if kind == 'idle' and before == 'working' then
+          window:toast_notification('Claude Code', string.format(tr { en = '%s finished', es = '%s terminó' }, name))
+        elseif kind == 'waiting' then
+          window:toast_notification('Claude Code', string.format(tr { en = '%s needs you', es = '%s te necesita' }, name))
+        end
+      end
+    end
+  end
+  claude_seen = seen -- solo los paneles que siguen vivos
 end)
 
 config.keys = {}
