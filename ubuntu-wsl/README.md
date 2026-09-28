@@ -543,6 +543,17 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 | `Ctrl+Alt+0` | Reset window opacity to the config value |
 | `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout (manual only, no autosave) |
 
+### Claude Code sessions in the tab bar
+
+Each tab running Claude Code shows its state in the glyph after the tab number and in the tab's separator:
+
+| Mark | Colour | Meaning |
+|------|--------|---------|
+| `◐` `◑` (turning) | yellow | working |
+| `✳` | dim grey | waiting for your next message |
+| `•` | green | finished while you were on another tab (clears when you open it) |
+| bell | red | needs you: a permission prompt or a question (needs the Claude Code hook that sets the `claude_state` user var) |
+
 ### tmux
 
 | Shortcut | Action |
