@@ -526,6 +526,7 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 
 | Shortcut | Action |
 |----------|--------|
+| `F1` or click the **Keys** button in the tab bar | Searchable help with every shortcut below (Enter runs a WezTerm one). English by default; set `HELP_LANG = 'es'` at the top of `wezterm.lua` for Spanish |
 | `Ctrl+Shift+T` | New tab |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous tab |
 | `Ctrl+Shift+1`..`9` | Jump to tab 1-8 (`9` = last) |
@@ -538,6 +539,8 @@ config.default_prog = { 'wsl.exe', '--distribution', 'Ubuntu', '--exec', '/usr/b
 | `Ctrl+Shift+Z` | Zoom/unzoom pane |
 | `Ctrl+Shift+W` | Close current pane |
 | `Ctrl+Shift+R` | Reload config |
+| `Ctrl+Alt+Up` / `Ctrl+Alt+Down` | Window more opaque / more transparent (5% steps, 30-100%) |
+| `Ctrl+Alt+0` | Reset window opacity to the config value |
 | `Ctrl+Space s` / `Ctrl+Space r` | Save / restore pane layout (manual only, no autosave) |
 
 ### tmux

@@ -1,9 +1,42 @@
 -- WEZTERM (Windows) + WSL (Ubuntu) - Config ajustada
 local wezterm = require 'wezterm'
+
+-- Títulos de pestaña con color al pasar el mouse. WezTerm usa solo el primer handler de
+-- format-tab-title, y bar.wezterm (cargado abajo) ignora el hover, así que este va antes
+-- del plugin. Copia su formato "N <separador> título" (bar.wezterm 89ef9bb): si el plugin
+-- cambia cómo dibuja las pestañas, hay que actualizar esto.
+wezterm.on('format-tab-title', function(tab, _, _, conf, hover)
+  local palette = conf.resolved_palette.tab_bar
+  local index = tostring(tab.tab_index + 1)
+  local icon = wezterm.nerdfonts.pl_right_hard_divider
+  local name = tab.tab_title
+  if not name or #name == 0 then
+    name = (tab.active_pane.title:match('[^/\\]*$') or ''):gsub('%.%w+$', '')
+  end
+  local title = index .. ' ' .. icon .. ' ' .. name
+  if #title > conf.tab_max_width then
+    title = wezterm.truncate_right(title, conf.tab_max_width - (#index + #icon + 4)) .. '…'
+  end
+  local colors = palette.inactive_tab
+  if tab.is_active then
+    colors = palette.active_tab
+  elseif hover then
+    colors = palette.inactive_tab_hover
+  end
+  return {
+    { Background = { Color = colors.bg_color } },
+    { Foreground = { Color = colors.fg_color } },
+    { Text = title .. '  ' },
+  }
+end)
+
 local bar = wezterm.plugin.require("https://github.com/adriankarlen/bar.wezterm") -- bar.wezterm plugin :contentReference[oaicite:1]{index=1}
 local act = wezterm.action
 
 local config = wezterm.config_builder()
+
+-- Idioma de la ayuda de atajos (F1 y botón de la barra): 'en' o 'es'
+local HELP_LANG = 'en'
 
 -- =========================================================
 -- OPTIMIZACIONES
@@ -95,7 +128,8 @@ config.enable_tab_bar = true
 config.use_fancy_tab_bar = false
 config.hide_tab_bar_if_only_one_tab = false
 config.show_tab_index_in_tab_bar = false
-config.show_new_tab_button_in_tab_bar = false
+-- El botón de "nueva pestaña" pasa a ser el de la ayuda de atajos (ver sección 7)
+config.show_new_tab_button_in_tab_bar = true
 config.tab_max_width = 28
 
 -- Scrollbar ON (usa el padding derecho)
@@ -210,8 +244,9 @@ config.colors.tab_bar.inactive_tab.fg_color = '#6272a4'
 
 -- Hover: “lift” sutil
 config.colors.tab_bar.inactive_tab_hover = config.colors.tab_bar.inactive_tab_hover or {}
-config.colors.tab_bar.inactive_tab_hover.bg_color = '#2a2c37'
-config.colors.tab_bar.inactive_tab_hover.fg_color = '#f8f8f2'
+-- Hover: fondo entre inactiva y activa, texto en el morado de acento (botón Keys, marcas de Enter)
+config.colors.tab_bar.inactive_tab_hover.bg_color = '#343746'
+config.colors.tab_bar.inactive_tab_hover.fg_color = '#bd93f9'
 
 -- Nuevo tab: acento morado dracula
 config.colors.tab_bar.new_tab = config.colors.tab_bar.new_tab or {}
@@ -225,42 +260,68 @@ config.colors.tab_bar.new_tab_hover.fg_color = '#f8f8f2'
 -- =========================================================
 -- 5) Keybindings
 -- Nota: ALT/OPT/META son equivalentes en WezTerm. :contentReference[oaicite:6]{index=6}
+--
+-- Todos los atajos van en KEYMAP, nunca directo en config.keys: de esta lista salen
+-- config.keys y la ayuda de F1 (sección 7), así que un atajo nuevo aparece en la ayuda
+-- solo. Campos: grupo, cómo se escribe el atajo, qué hace en inglés y en español
+-- (HELP_LANG elige), y key/mods/action para WezTerm. Una entrada sin key solo se
+-- muestra en la ayuda (tmux, zsh, rangos).
+-- tests/wezterm-keys.test.lua falla si un atajo queda fuera de la ayuda o sin traducir.
 -- =========================================================
-config.keys = {
-  -- Split horizontal
-  {
-    key = 'f',
-    mods = 'CTRL|SHIFT',
-    action = act.SplitHorizontal { domain = 'CurrentPaneDomain' },
-  },
+local function wez(section, keys, desc, key, mods, action)
+  return { group = 'wezterm', section = section, keys = keys, desc = desc, key = key, mods = mods, action = action }
+end
 
-  -- Split vertical
-  {
-    key = 'd',
-    mods = 'CTRL|SHIFT',
-    action = act.SplitVertical { domain = 'CurrentPaneDomain' },
-  },
+local KEYMAP = {
+  -- Pestañas (mismos atajos que trae WezTerm, declarados para que salgan en la ayuda)
+  wez('tabs', 'Ctrl+Tab', { en = 'Next tab', es = 'Pestaña siguiente' },
+    'Tab', 'CTRL', act.ActivateTabRelative(1)),
+  wez('tabs', 'Ctrl+Shift+Tab', { en = 'Previous tab', es = 'Pestaña anterior' },
+    'Tab', 'CTRL|SHIFT', act.ActivateTabRelative(-1)),
+  wez('tabs', 'Ctrl+Shift+PageUp', { en = 'Move tab left', es = 'Mover pestaña a la izquierda' },
+    'PageUp', 'CTRL|SHIFT', act.MoveTabRelative(-1)),
+  wez('tabs', 'Ctrl+Shift+PageDown', { en = 'Move tab right', es = 'Mover pestaña a la derecha' },
+    'PageDown', 'CTRL|SHIFT', act.MoveTabRelative(1)),
+  { group = 'wezterm', section = 'tabs', keys = 'Ctrl+Shift+1..9',
+    desc = { en = 'Go to tab 1-8 (9 = last)', es = 'Ir a la pestaña 1-8 (9 = última)' } },
+
+  -- Splits
+  wez('panes', 'Ctrl+Shift+F', { en = 'Split pane horizontally', es = 'Dividir panel en horizontal' },
+    'f', 'CTRL|SHIFT', act.SplitHorizontal { domain = 'CurrentPaneDomain' }),
+  wez('panes', 'Ctrl+Shift+D', { en = 'Split pane vertically', es = 'Dividir panel en vertical' },
+    'd', 'CTRL|SHIFT', act.SplitVertical { domain = 'CurrentPaneDomain' }),
 
   -- Cambiar entre paneles
-  { key = 'LeftArrow',  mods = 'CTRL', action = act.ActivatePaneDirection 'Left'  },
-  { key = 'RightArrow', mods = 'CTRL', action = act.ActivatePaneDirection 'Right' },
-  { key = 'UpArrow',    mods = 'CTRL', action = act.ActivatePaneDirection 'Up'    },
-  { key = 'DownArrow',  mods = 'CTRL', action = act.ActivatePaneDirection 'Down'  },
+  wez('panes', 'Ctrl+Left', { en = 'Go to the pane on the left', es = 'Ir al panel de la izquierda' },
+    'LeftArrow', 'CTRL', act.ActivatePaneDirection 'Left'),
+  wez('panes', 'Ctrl+Right', { en = 'Go to the pane on the right', es = 'Ir al panel de la derecha' },
+    'RightArrow', 'CTRL', act.ActivatePaneDirection 'Right'),
+  wez('panes', 'Ctrl+Up', { en = 'Go to the pane above', es = 'Ir al panel de arriba' },
+    'UpArrow', 'CTRL', act.ActivatePaneDirection 'Up'),
+  wez('panes', 'Ctrl+Down', { en = 'Go to the pane below', es = 'Ir al panel de abajo' },
+    'DownArrow', 'CTRL', act.ActivatePaneDirection 'Down'),
 
   -- Zoom del panel
-  { key = 'z', mods = 'CTRL|SHIFT', action = act.TogglePaneZoomState },
+  wez('panes', 'Ctrl+Shift+Z', { en = 'Zoom the pane in or out', es = 'Zoom del panel (activar/quitar)' },
+    'z', 'CTRL|SHIFT', act.TogglePaneZoomState),
 
   -- Redimensionar paneles
-  { key = 'LeftArrow',  mods = 'OPT', action = act.AdjustPaneSize { 'Left',  5 } },
-  { key = 'RightArrow', mods = 'OPT', action = act.AdjustPaneSize { 'Right', 5 } },
-  { key = 'UpArrow',    mods = 'OPT', action = act.AdjustPaneSize { 'Up',    5 } },
-  { key = 'DownArrow',  mods = 'OPT', action = act.AdjustPaneSize { 'Down',  5 } },
+  wez('panes', 'Alt+Left', { en = 'Move the pane border left', es = 'Mover el borde del panel a la izquierda' },
+    'LeftArrow', 'OPT', act.AdjustPaneSize { 'Left', 5 }),
+  wez('panes', 'Alt+Right', { en = 'Move the pane border right', es = 'Mover el borde del panel a la derecha' },
+    'RightArrow', 'OPT', act.AdjustPaneSize { 'Right', 5 }),
+  wez('panes', 'Alt+Up', { en = 'Move the pane border up', es = 'Mover el borde del panel hacia arriba' },
+    'UpArrow', 'OPT', act.AdjustPaneSize { 'Up', 5 }),
+  wez('panes', 'Alt+Down', { en = 'Move the pane border down', es = 'Mover el borde del panel hacia abajo' },
+    'DownArrow', 'OPT', act.AdjustPaneSize { 'Down', 5 }),
 
   -- Cerrar panel
-  { key = 'w', mods = 'CTRL|SHIFT', action = act.CloseCurrentPane { confirm = true } },
+  wez('panes', 'Ctrl+Shift+W', { en = 'Close the current pane', es = 'Cerrar el panel actual' },
+    'w', 'CTRL|SHIFT', act.CloseCurrentPane { confirm = true }),
 
   -- 4) Atajo para recargar config
-  { key = 'r', mods = 'CTRL|SHIFT', action = act.ReloadConfiguration },
+  wez('help', 'Ctrl+Shift+R', { en = 'Reload the config', es = 'Recargar la config' },
+    'r', 'CTRL|SHIFT', act.ReloadConfiguration),
 }
 
 config.inactive_pane_hsb = {
@@ -269,14 +330,12 @@ config.inactive_pane_hsb = {
 }
 
 -- Split con tmux en el pane actual (Ctrl+Shift+Y; la T quedó para nueva pestaña)
-table.insert(config.keys, {
-  key = 'Y',
-  mods = 'CTRL|SHIFT',
-  action = act.SplitHorizontal {
+table.insert(KEYMAP, wez('panes', 'Ctrl+Shift+Y',
+  { en = 'Split horizontally running tmux (session main)', es = 'Dividir en horizontal con tmux (sesión main)' },
+  'Y', 'CTRL|SHIFT', act.SplitHorizontal {
     domain = 'CurrentPaneDomain',
     args = { 'tmux', 'new-session', '-A', '-s', 'main' },
-  },
-})
+  }))
 
 -- =========================================================
 -- 6) Persistencia de layout: guarda qué ventanas/splits hay y la carpeta
@@ -400,13 +459,226 @@ if false and not wezterm.GLOBAL.layout_autosave then -- 2026-09-16: apagado, ver
   wezterm.time.call_after(60, tick)
 end
 
-table.insert(config.keys, { key = 's', mods = 'LEADER',
-  action = wezterm.action_callback(function() save_layout() end) })
-table.insert(config.keys, { key = 'r', mods = 'LEADER',
-  action = wezterm.action_callback(function() restore_layout() end) })
+table.insert(KEYMAP, wez('panes', 'Ctrl+Space s', { en = 'Save the pane layout', es = 'Guardar el layout de paneles' },
+  's', 'LEADER', wezterm.action_callback(function() save_layout() end)))
+table.insert(KEYMAP, wez('panes', 'Ctrl+Space r', { en = 'Restore the saved layout', es = 'Restaurar el layout guardado' },
+  'r', 'LEADER', wezterm.action_callback(function() restore_layout() end)))
 
 -- Nueva pestaña: Ctrl+Shift+T
-table.insert(config.keys, { key = 'T', mods = 'CTRL|SHIFT',
-  action = act.SpawnTab 'CurrentPaneDomain' })
+table.insert(KEYMAP, wez('tabs', 'Ctrl+Shift+T', { en = 'New tab', es = 'Nueva pestaña' },
+  'T', 'CTRL|SHIFT', act.SpawnTab 'CurrentPaneDomain'))
 
-return config
+-- =========================================================
+-- 7) Ayuda de atajos: F1, o click en el botón "Keys"/"Atajos" de la barra de pestañas
+--    Lista KEYMAP con búsqueda fuzzy. Enter sobre un atajo de WezTerm lo ejecuta;
+--    sobre uno de tmux o zsh solo cierra, porque WezTerm no puede dispararlos.
+-- =========================================================
+local function tr(t) return t[HELP_LANG] or t.en end
+
+local function info(group, keys, desc) return { group = group, section = group, keys = keys, desc = desc } end
+
+for _, k in ipairs({
+  info('tmux', 'Ctrl+a |', { en = 'Split horizontally', es = 'Dividir en horizontal' }),
+  info('tmux', 'Ctrl+a -', { en = 'Split vertically', es = 'Dividir en vertical' }),
+  info('tmux', 'Ctrl+a I', { en = 'Install plugins (TPM)', es = 'Instalar plugins (TPM)' }),
+  info('zsh',  'Ctrl+F',   { en = 'Accept the suggestion', es = 'Aceptar la sugerencia' }),
+  info('zsh',  'Ctrl+R',   { en = 'Search history (fzf)', es = 'Buscar en el historial (fzf)' }),
+  info('zsh',  'Ctrl+T',   { en = 'Find a file (fzf)', es = 'Buscar archivo (fzf)' }),
+  info('zsh',  'Alt+C',    { en = 'Jump into a directory (fzf)', es = 'Entrar a un directorio (fzf)' }),
+}) do
+  table.insert(KEYMAP, k)
+end
+
+-- Colores Dracula: un ícono y un color por grupo; el texto de la fila, en gris.
+local HELP_GROUPS = {
+  wezterm = { icon = wezterm.nerdfonts.dev_terminal,      color = '#bd93f9' },
+  tmux    = { icon = wezterm.nerdfonts.cod_terminal_tmux, color = '#50fa7b' },
+  zsh     = { icon = wezterm.nerdfonts.cod_terminal,      color = '#8be9fd' },
+}
+
+-- Secciones de la ayuda, en este orden; cada entrada de KEYMAP dice a cuál va. Los títulos
+-- van ya en mayúsculas: upper() de Lua trabaja por bytes y dejaría "PESTAñAS".
+local HELP_SECTIONS = {
+  { id = 'help',  title = { en = 'HELP & CONFIG',    es = 'AYUDA Y CONFIG' } },
+  { id = 'tabs',  title = { en = 'TABS',             es = 'PESTAÑAS' } },
+  { id = 'panes', title = { en = 'PANES & LAYOUT',   es = 'PANELES Y LAYOUT' } },
+  { id = 'tmux',  title = { en = 'TMUX · REFERENCE', es = 'TMUX · REFERENCIA' } },
+  { id = 'zsh',   title = { en = 'ZSH · REFERENCE',  es = 'ZSH · REFERENCIA' } },
+}
+
+-- Filas compactas (hasta 80 columnas) para que la marca de Enter quede cerca del texto.
+local KEYS_COLS, MARK_COLS = 22, 2
+local RET = wezterm.nerdfonts.md_keyboard_return
+
+-- Ancho en celdas: un carácter UTF-8 por celda (íconos Nerd Font incluidos).
+local function cells(s) return select(2, s:gsub('[^\128-\191]', '')) end
+local function pad(s, n) return s .. string.rep(' ', n - cells(s)) end
+
+-- Recorta a n celdas con "…" (en paneles angostos), sin partir un carácter UTF-8.
+local function fit(s, n)
+  if cells(s) <= n then return s end
+  local out, used = {}, 0
+  for ch in s:gmatch('[\1-\127\194-\244][\128-\191]*') do
+    if used == n - 1 then break end
+    table.insert(out, ch)
+    used = used + 1
+  end
+  return table.concat(out) .. '…'
+end
+
+-- Las filas de WezTerm terminan en la marca de Enter; las de tmux y zsh van tenues y sin
+-- marca (su título ya dice que son de referencia), igual que un rango como Ctrl+Shift+1..9.
+-- Después del ícono, todo va en un solo color: WezTerm marca la fila seleccionada
+-- invirtiendo los colores de cada tramo, y con uno solo se ve como un bloque parejo.
+local function help_row(k, row_cols)
+  local g = HELP_GROUPS[k.group]
+  local runnable = k.action ~= nil
+  local desc_cols = row_cols - 4 - KEYS_COLS - MARK_COLS - 1
+  return wezterm.format {
+    { Foreground = { Color = g.color } }, { Text = ' ' .. g.icon .. '  ' },
+    { Foreground = { Color = k.group == 'wezterm' and '#c0c4d6' or '#6272a4' } },
+    { Attribute = { Intensity = 'Bold' } }, { Text = pad(fit(k.keys, KEYS_COLS), KEYS_COLS) },
+    { Attribute = { Intensity = 'Normal' } },
+    { Text = pad(fit(tr(k.desc), desc_cols), desc_cols) .. ' ' .. (runnable and RET or ' ') .. ' ' },
+  }
+end
+
+local function help_header(section, row_cols)
+  local text = ' ── ' .. tr(section.title) .. ' '
+  return wezterm.format {
+    { Foreground = { Color = '#6272a4' } }, { Attribute = { Intensity = 'Bold' } },
+    { Text = text .. string.rep('─', row_cols - cells(text) - 1) .. ' ' },
+  }
+end
+
+-- La ventana es semitransparente: mientras la ayuda está abierta se vuelve opaca, para que
+-- la lista no se mezcle con lo que hay detrás, y al cerrarla (Enter o Esc) recupera lo que
+-- tenía. Pintar un fondo por fila no sirve: parpadea al mover la selección.
+local function set_opacity(window, value)
+  local overrides = window:get_config_overrides() or {}
+  overrides.window_background_opacity = value
+  window:set_config_overrides(overrides)
+end
+
+-- Por ventana: la opacidad de antes de la primera ayuda y los paneles con una ayuda
+-- abierta. Se restaura cuando se cierra la última, aunque haya dos abiertas a la vez.
+local help_open = {}
+
+local function help_opened(window, pane)
+  local state = help_open[window:window_id()]
+  if not state then
+    state = { before = (window:get_config_overrides() or {}).window_background_opacity, panes = {} }
+    help_open[window:window_id()] = state
+    set_opacity(window, 1.0)
+  end
+  state.panes[pane:pane_id()] = true
+end
+
+local function help_closed(window, pane_id)
+  local state = help_open[window:window_id()]
+  if not state then return end
+  state.panes[pane_id] = nil
+  if next(state.panes) == nil then
+    help_open[window:window_id()] = nil
+    set_opacity(window, state.before)
+  end
+end
+
+-- Un panel cerrado con la ayuda abierta nunca llama al callback: update-status (cada
+-- segundo) lo nota porque el panel ya no existe, y lo da por cerrado.
+wezterm.on('update-status', function(window)
+  local state = help_open[window:window_id()]
+  if not state then return end
+  for id in pairs(state.panes) do
+    if not wezterm.mux.get_pane(id) then help_closed(window, id) end
+  end
+end)
+
+local function show_help(window, pane)
+  local row_cols = math.max(40, math.min(80, pane:get_dimensions().cols - 8))
+  local choices, run, entries = {}, {}, 0
+  for _, section in ipairs(HELP_SECTIONS) do
+    table.insert(choices, { id = 'header:' .. section.id, label = help_header(section, row_cols) })
+    for i, k in ipairs(KEYMAP) do
+      if k.section == section.id then
+        local id = k.key and (k.key .. '|' .. (k.mods or '')) or (k.group .. ':' .. i)
+        run[id] = k.action
+        entries = entries + 1
+        table.insert(choices, { id = id, label = help_row(k, row_cols) })
+      end
+    end
+  end
+  help_opened(window, pane)
+  window:perform_action(act.InputSelector {
+    -- Título de la pestaña temporal: distinto del botón "Keys" para no verlo dos veces.
+    title = wezterm.nerdfonts.md_keyboard .. ' ' .. tr { en = 'Help', es = 'Ayuda' },
+    choices = choices,
+    fuzzy = true,
+    fuzzy_description = wezterm.nerdfonts.md_keyboard .. '  ' .. string.format(tr {
+      en = 'Search %d keys  ·  %s runs WezTerm ones  ·  Esc closes: ',
+      es = 'Buscar entre %d atajos  ·  %s ejecuta los de WezTerm  ·  Esc cierra: ',
+    }, entries, RET),
+    action = wezterm.action_callback(function(win, p, id)
+      help_closed(win, pane:pane_id())
+      if id and run[id] then win:perform_action(run[id], p) end
+    end),
+  }, pane)
+end
+
+table.insert(KEYMAP, 1, wez('help', 'F1', { en = 'Show this help', es = 'Mostrar esta ayuda' },
+  'F1', nil, wezterm.action_callback(show_help)))
+
+-- Transparencia: Ctrl+Alt+Up/Down de a 5% entre 30% y 100%, y Ctrl+Alt+0 vuelve al valor
+-- de config.window_background_opacity. Se guarda como override de la ventana, así que la
+-- ayuda (que la vuelve opaca mientras está abierta) la recupera al cerrarse.
+local OPACITY_STEP, OPACITY_MIN = 0.05, 0.3
+
+local function change_opacity(delta)
+  return wezterm.action_callback(function(window)
+    local current = (window:get_config_overrides() or {}).window_background_opacity
+      or config.window_background_opacity
+    local value = math.min(1.0, math.max(OPACITY_MIN, current + delta))
+    set_opacity(window, math.floor(value * 100 + 0.5) / 100)
+  end)
+end
+
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+Up', { en = 'Make the window more opaque', es = 'Ventana menos transparente' },
+  'UpArrow', 'CTRL|ALT', change_opacity(OPACITY_STEP)))
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+Down', { en = 'Make the window more transparent', es = 'Ventana más transparente' },
+  'DownArrow', 'CTRL|ALT', change_opacity(-OPACITY_STEP)))
+table.insert(KEYMAP, wez('help', 'Ctrl+Alt+0', { en = 'Reset the window opacity', es = 'Volver a la transparencia de la config' },
+  '0', 'CTRL|ALT', wezterm.action_callback(function(window) set_opacity(window, nil) end)))
+
+-- El botón: cápsula morada con ícono de teclado, rosa al pasar el mouse. El fondo de los
+-- bordes redondeados es el de las pestañas inactivas, para que calce con la barra.
+local function help_button(bg)
+  local bar_bg = '#1e1f29'
+  return wezterm.format {
+    { Background = { Color = bar_bg } }, { Text = ' ' },
+    { Foreground = { Color = bg } }, { Text = wezterm.nerdfonts.ple_left_half_circle_thick },
+    { Background = { Color = bg } }, { Foreground = { Color = '#282a36' } },
+    { Attribute = { Intensity = 'Bold' } },
+    { Text = wezterm.nerdfonts.md_keyboard .. ' ' .. tr { en = 'Keys', es = 'Atajos' } },
+    'ResetAttributes',
+    { Background = { Color = bar_bg } }, { Foreground = { Color = bg } },
+    { Text = wezterm.nerdfonts.ple_right_half_circle_thick },
+  }
+end
+config.tab_bar_style = { new_tab = help_button('#bd93f9'), new_tab_hover = help_button('#ff79c6') }
+
+-- Click izquierdo en el botón: la ayuda en vez de una pestaña nueva (esa sigue en
+-- Ctrl+Shift+T). El click derecho conserva lo que hace WezTerm por defecto.
+wezterm.on('new-tab-button-click', function(window, pane, button)
+  if button ~= 'Left' then return end
+  show_help(window, pane)
+  return false
+end)
+
+config.keys = {}
+for _, k in ipairs(KEYMAP) do
+  if k.key then
+    table.insert(config.keys, { key = k.key, mods = k.mods, action = k.action })
+  end
+end
+
+return config
