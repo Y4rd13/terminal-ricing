@@ -154,6 +154,9 @@ declare -A SEL_PACMAN_TOOLS=()
 declare -A SEL_PACMAN_EXTRA=()
 declare -A SEL_ARCH_COMPONENTS=()
 SEL_SET_ZSH_DEFAULT=0
+SEL_LINK_EDITOR=""
+SEL_JIRA_URL=""
+SEL_JIRA_PROJECTS=""
 
 # ── Terminal control ────────────────────────────────────────────
 
@@ -348,6 +351,14 @@ prompt_select() {
             QUIT) show_cursor; echo -e "\n  ${ORG}Aborted.${RST}\n"; exit 0 ;;
         esac
     done
+}
+
+prompt_text() {
+    echo ""
+    echo -e "  ${WHT}${BLD}$1${RST}"
+    show_cursor
+    REPLY=""
+    IFS= read -r -p "  > " REPLY || true
 }
 
 # Generic multi-select TUI
@@ -577,6 +588,70 @@ deploy_dotfile() {
     fi
 }
 
+# ── WezTerm links (ubuntu-wsl) ──────────────────────────────────
+# WezTerm runs on Windows and reads %USERPROFILE%\.wezterm-settings.json, the same file
+# its Settings page writes. The editor for file:line links and the Jira site go there,
+# never into wezterm.lua: this repo is public.
+
+detect_link_editors() {
+    local e
+    for e in code nvim micro; do
+        if command -v "$e" &>/dev/null; then printf '%s\n' "$e"; fi
+    done
+}
+
+# valid_jira <url> <comma-separated prefixes>: an https site and keys like FTK or OPS2.
+valid_jira() {
+    [[ "$1" =~ ^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._/-]*)?$ ]] || return 1
+    local p keys=()
+    IFS=',' read -ra keys <<< "$2"
+    [[ ${#keys[@]} -gt 0 ]] || return 1
+    for p in "${keys[@]}"; do
+        [[ "$p" =~ ^[A-Z][A-Z0-9]+$ ]] || return 1
+    done
+}
+
+wezterm_settings_file() {
+    local win_home
+    win_home="$(cmd.exe /c 'echo %USERPROFILE%' 2>/dev/null | tr -d '\r')" || return 1
+    [[ -n "$win_home" && "$win_home" != *%* ]] || return 1
+    # Checked apart: inside printf's $(...) a failed wslpath would still print a path at /.
+    local unix_home
+    unix_home="$(wslpath -u "$win_home")" || return 1
+    [[ -n "$unix_home" ]] || return 1
+    printf '%s/.wezterm-settings.json\n' "$unix_home"
+}
+
+# merge_wezterm_settings <file> <editor> <jira_url> <jira_projects_csv>: sets those keys
+# (an empty argument leaves its key alone) and keeps every other key. Returns 2 when the
+# file exists but is not a JSON object (left untouched), 3 without python3, and 1 when
+# the write fails (any error Python does not catch exits 1).
+merge_wezterm_settings() {
+    command -v python3 &>/dev/null || return 3
+    python3 - "$@" <<'PY'
+import json, os, sys
+path, editor, url, projects = sys.argv[1:5]
+data = {}
+if os.path.exists(path) and os.path.getsize(path) > 0:
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except ValueError:
+        sys.exit(2)
+    if not isinstance(data, dict):
+        sys.exit(2)
+if editor:
+    data["editor"] = editor
+if url and projects:
+    data["jira_url"] = url.rstrip("/")
+    data["jira_projects"] = [p for p in projects.split(",") if p]
+tmp = path + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+os.replace(tmp, path)
+PY
+}
+
 # ── Wizard steps ────────────────────────────────────────────────
 
 step_welcome() {
@@ -697,6 +772,44 @@ step_zsh_default() {
         elif prompt_yn "Set ZSH as default shell?" "Runs: chsh -s \$(which zsh)"; then
             SEL_SET_ZSH_DEFAULT=1
         fi
+    fi
+}
+
+step_links() {
+    [[ "$SELECTED_PLATFORM" == "ubuntu-wsl" ]] || return 0
+    section_header "WEZTERM LINKS"
+
+    local editors=()
+    mapfile -t editors < <(detect_link_editors)
+    if [[ ${#editors[@]} -eq 0 ]]; then
+        warn "No code, nvim or micro found: file:line links will try nvim"
+    elif [[ ${#editors[@]} -eq 1 ]]; then
+        SEL_LINK_EDITOR="${editors[0]}"
+        dimm "file:line links will open in ${SEL_LINK_EDITOR} (the only editor found)"
+    else
+        prompt_select "Which editor opens file:line links?" "${editors[@]}"
+        SEL_LINK_EDITOR="${editors[$((REPLY - 1))]}"
+    fi
+
+    if prompt_yn "Make Jira keys clickable?" "Asks for your Jira site and project prefixes; saved outside this repo"; then
+        # Asked again until valid: a warning alone would be cleared by the next screen.
+        local url projects
+        while true; do
+            prompt_text "Jira site (e.g. https://your-site.atlassian.net), empty to skip:"
+            url="${REPLY// /}"
+            if [[ -z "$url" ]]; then
+                dimm "Jira links skipped"
+                break
+            fi
+            prompt_text "Project prefixes, comma-separated (e.g. ABC,OPS):"
+            projects="${REPLY// /}"
+            if valid_jira "$url" "$projects"; then
+                SEL_JIRA_URL="$url"
+                SEL_JIRA_PROJECTS="$projects"
+                break
+            fi
+            warn "Needs an https:// site and upper-case prefixes like ABC. Try again."
+        done
     fi
 }
 
@@ -879,6 +992,22 @@ step_execute() {
         info "Setting ZSH as default shell..."
         chsh -s "$(which zsh)" && ok "ZSH set as default shell" || err "Failed to set ZSH (try manually: chsh -s \$(which zsh))"
     fi
+
+    # WezTerm links: editor and Jira site, into the Windows-side settings file
+    if [[ -n "$SEL_LINK_EDITOR" || -n "$SEL_JIRA_URL" ]]; then
+        local settings_file rc=0
+        if settings_file="$(wezterm_settings_file)"; then
+            merge_wezterm_settings "$settings_file" "$SEL_LINK_EDITOR" "$SEL_JIRA_URL" "$SEL_JIRA_PROJECTS" || rc=$?
+            case "$rc" in
+                0) ok "WezTerm link settings saved to ${settings_file}" ;;
+                2) warn "${settings_file} is not valid JSON: left untouched, link settings not saved" ;;
+                3) warn "python3 not found: WezTerm link settings not saved" ;;
+                *) warn "could not write ${settings_file}: WezTerm link settings not saved" ;;
+            esac
+        else
+            warn "Could not find %USERPROFILE%: WezTerm link settings not saved"
+        fi
+    fi
 }
 
 step_post_install() {
@@ -928,6 +1057,7 @@ cmd_configure() {
     step_git_components
     step_dotfiles
     step_zsh_default
+    step_links
     step_summary
     step_execute
     step_post_install

@@ -447,10 +447,12 @@ local function linux_cwd(pane)
   return nil
 end
 
+-- Comillas simples para bash: no interpreta nada de lo que va dentro.
+local function sh_quote(s) return "'" .. s:gsub("'", "'\\''") .. "'" end
+
 local function prog_in(dir)
-  if dir then -- comillas simples: bash no interpreta el nombre de la carpeta
-    local quoted = "'" .. dir:gsub("'", "'\\''") .. "'"
-    return { 'bash', '-lc', 'cd ' .. quoted .. ' && exec zsh -l' }
+  if dir then
+    return { 'bash', '-lc', 'cd ' .. sh_quote(dir) .. ' && exec zsh -l' }
   end
   return nil -- sin carpeta conocida: default_prog (zsh en ~)
 end
@@ -588,6 +590,7 @@ local HELP_SECTIONS = {
   { id = 'help',  title = { en = 'HELP & CONFIG',    es = 'AYUDA Y CONFIG' } },
   { id = 'tabs',  title = { en = 'TABS',             es = 'PESTAÑAS' } },
   { id = 'panes', title = { en = 'PANES & LAYOUT',   es = 'PANELES Y LAYOUT' } },
+  { id = 'links', title = { en = 'LINKS',            es = 'ENLACES' } },
   { id = 'tmux',  title = { en = 'TMUX · REFERENCE', es = 'TMUX · REFERENCIA' } },
   { id = 'zsh',   title = { en = 'ZSH · REFERENCE',  es = 'ZSH · REFERENCIA' } },
 }
@@ -971,6 +974,148 @@ wezterm.on('update-status', function(window)
   claude_seen = seen -- solo los paneles que siguen vivos
 end)
 
+-- =========================================================
+-- 9) Links clickeables y Quick Select. Click en:
+--    #N          -> PR o issue N del repo de GitHub de la carpeta del panel
+--    FTK-123     -> la tarea en Jira. URL y prefijos van en ~/.wezterm-settings.json
+--                   (jira_url, jira_projects), que escribe setup.sh: el repo es público.
+--    a/b.ts:42   -> el editor elegido en setup.sh (editor: code, nvim o micro)
+-- Las reglas son regex de Rust: sin lookaround. Los patrones de Quick Select van sin
+-- grupos de captura, porque WezTerm los une todos en una sola regex.
+-- =========================================================
+-- Ruta, :línea y opcionalmente :columna. La ruta lleva una barra (src/app.ts, ./x.py) o,
+-- sin barra, una extensión de código conocida (setup.sh): así api.github.com:443 o
+-- db.internal:5432 no calzan. La extensión empieza con letra, así 127.0.0.1:8080 tampoco.
+-- En la regla de click además va precedida de inicio de línea, espacio, paréntesis o
+-- comilla, para no calzar dentro de una URL (http://host.dev/x.ts:8080).
+local FILE_EXTS = table.concat({
+  'lua', 'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'rs', 'go', 'sh', 'zsh', 'bash', 'md', 'json',
+  'jsonc', 'toml', 'yaml', 'yml', 'c', 'h', 'cc', 'cpp', 'hpp', 'java', 'kt', 'rb', 'php', 'cs',
+  'swift', 'sql', 'html', 'css', 'scss', 'vue', 'svelte', 'txt', 'conf', 'ini', 'xml', 'tf', 'ps1',
+}, '|')
+local FILE_REGEX = [==[(?:[\w.-]*/[\w./-]*\.[A-Za-z][A-Za-z0-9]*|[\w-][\w.-]*\.(?:]==] .. FILE_EXTS
+  .. [==[)):\d+(?::\d+)?\b]==]
+
+-- Regex y formato de la regla de Jira, o nil si los ajustes faltan o no validan. Los
+-- prefijos se validan antes de ir a la regex: solo mayúsculas y dígitos.
+local function jira_rule()
+  local url, projects = SETTINGS.jira_url, SETTINGS.jira_projects
+  if type(url) ~= 'string' or not url:match('^https://[%w%.%-]+') then return nil end
+  if type(projects) ~= 'table' or #projects == 0 then return nil end
+  for _, p in ipairs(projects) do
+    if type(p) ~= 'string' or not p:match('^[A-Z][A-Z0-9]+$') then return nil end
+  end
+  return [[\b(?:]] .. table.concat(projects, '|') .. [[)-\d+\b]], (url:gsub('/+$', '')) .. '/browse/$0'
+end
+
+config.hyperlink_rules = wezterm.default_hyperlink_rules()
+table.insert(config.hyperlink_rules, { regex = [==[(?:^|[\s(])(#(\d{1,6}))\b]==], format = 'ghref:$2', highlight = 1 })
+table.insert(config.hyperlink_rules, { regex = [==[(?:^|[\s(\['"])(]==] .. FILE_REGEX .. ')', format = 'edit:$1', highlight = 1 })
+config.quick_select_patterns = { [==[#\d{1,6}\b]==], FILE_REGEX }
+
+local JIRA_REGEX, JIRA_FORMAT = jira_rule()
+if JIRA_REGEX then
+  table.insert(config.hyperlink_rules, { regex = JIRA_REGEX, format = JIRA_FORMAT })
+  table.insert(config.quick_select_patterns, JIRA_REGEX)
+end
+
+local EDITOR = ({ code = 'code', nvim = 'nvim', micro = 'micro' })[SETTINGS.editor] or 'nvim'
+
+-- Corre un comando en la distro sin pasar por una shell (~0,15 s medido). --exec y no --:
+-- después de -- wsl.exe entrega la línea a la shell de Linux, que expandiría $(...) de una
+-- ruta. Devuelve si salió bien y la salida.
+local function wsl(dir, args)
+  local argv = { 'wsl.exe', '-d', WSL_DISTRO }
+  if dir then table.insert(argv, '--cd'); table.insert(argv, dir) end
+  table.insert(argv, '--exec')
+  for _, a in ipairs(args) do table.insert(argv, a) end
+  local called, ok, out = pcall(wezterm.run_child_process, argv)
+  return called and ok, (called and out) or ''
+end
+
+-- 'dueño/repo' si el remote es de github.com (https, ssh o scp), si no nil.
+local function github_repo(remote)
+  remote = (remote or ''):gsub('%s+$', '')
+  local path = remote:match('^https?://github%.com/(.+)$') or remote:match('^git@github%.com:(.+)$')
+    or remote:match('^ssh://git@github%.com/(.+)$')
+  if not path then return nil end
+  path = path:gsub('%.git$', ''):gsub('/$', '')
+  if path:match('^[%w%._-]+/[%w%._-]+$') then return path end
+  return nil
+end
+
+local function links_toast(window, msg) window:toast_notification('WezTerm', msg, nil, 4000) end
+
+local function open_in_editor(window, pane, path, line)
+  -- Un link OSC 8 puede apuntar a cualquier edit:, así que solo pasan rutas con letras,
+  -- dígitos, punto, guion, guion bajo y barra: nada que una shell interprete.
+  if not path:match('^[%w%./_%-]+$') then
+    links_toast(window, string.format(tr { en = 'Cannot open %s', es = 'No se puede abrir %s' }, path))
+    return
+  end
+  local abs = path
+  if path:sub(1, 1) ~= '/' then
+    local dir = linux_cwd(pane)
+    if not dir then
+      links_toast(window, string.format(tr { en = 'Unknown folder, cannot open %s',
+                                             es = 'Carpeta desconocida, no se puede abrir %s' }, path))
+      return
+    end
+    abs = dir .. '/' .. (path:gsub('^%./', ''))
+  end
+  if not wsl(nil, { 'test', '-f', abs }) then
+    links_toast(window, string.format(tr { en = '%s does not exist', es = '%s no existe' }, path))
+    return
+  end
+  if EDITOR == 'code' then
+    -- code solo está en el PATH que arma la shell: sh -c, con la ruta como argumento $1,
+    -- que sh no interpreta.
+    wezterm.background_child_process { 'wsl.exe', '-d', WSL_DISTRO, '--exec', 'sh', '-c', 'exec code -g "$1"', 'sh',
+                                       abs .. ':' .. line }
+  else
+    -- Login: nvim puede vivir en ~/.local/bin. Al salir del editor el split se cierra.
+    pane:split { direction = 'Right', domain = WSL,
+                 args = { 'bash', '-lc', 'exec ' .. EDITOR .. ' +' .. line .. ' ' .. sh_quote(abs) } }
+  end
+end
+
+wezterm.on('open-uri', function(window, pane, uri)
+  local n = uri:match('^ghref:(%d+)$')
+  if n then
+    local dir = linux_cwd(pane)
+    local ok, out = false, ''
+    if dir then ok, out = wsl(dir, { 'git', 'remote', 'get-url', 'origin' }) end
+    local repo = ok and github_repo(out)
+    if repo then
+      -- /issues/N redirige a /pull/N cuando N es un PR, así sirve para los dos.
+      wezterm.open_with('https://github.com/' .. repo .. '/issues/' .. n)
+    else
+      links_toast(window, tr { en = 'No GitHub remote in this folder', es = 'Esta carpeta no tiene remote de GitHub' })
+    end
+    return false
+  end
+  local path, line = uri:match('^edit:(.-):(%d+):%d+$')
+  if not path then path, line = uri:match('^edit:(.-):(%d+)$') end
+  if path then
+    open_in_editor(window, pane, path, line)
+    return false
+  end
+end)
+
+for _, k in ipairs({
+  { group = 'wezterm', section = 'links', keys = 'Click #N',
+    desc = { en = "PR or issue N of this folder's GitHub repo", es = 'PR o issue N del repo de GitHub de la carpeta' } },
+  { group = 'wezterm', section = 'links', keys = 'Click KEY-123',
+    desc = { en = 'Jira issue (site and prefixes from setup.sh)', es = 'Tarea de Jira (sitio y prefijos de setup.sh)' } },
+  { group = 'wezterm', section = 'links', keys = 'Click file:line',
+    desc = { en = 'Open it in ' .. EDITOR .. ' at that line', es = 'Abrirlo en ' .. EDITOR .. ' en esa línea' } },
+}) do
+  table.insert(KEYMAP, k)
+end
+table.insert(KEYMAP, wez('links', 'Ctrl+Shift+Space',
+  { en = 'Quick Select: copy a link, path, #N or key', es = 'Quick Select: copiar un link, ruta, #N o clave' },
+  'Space', 'CTRL|SHIFT', act.QuickSelect))
+
 config.keys = {}
 for _, k in ipairs(KEYMAP) do
   if k.key then
@@ -978,4 +1123,4 @@ for _, k in ipairs(KEYMAP) do
   end
 end
 
-return config
+return config

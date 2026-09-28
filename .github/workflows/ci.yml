@@ -33,11 +33,13 @@ jobs:
         run: |
           # shellcheck, setsid and script ship with ubuntu-latest, zsh and lua5.4 come
           # from the step above; fail loudly rather than skip silently if any goes missing,
-          # since the suite degrades to SKIP.
+          # since the suite degrades to SKIP. python3 ships with the image: T7 checks the
+          # WezTerm link regexes through it and T8 runs setup.sh's settings merge.
           command -v shellcheck
           command -v setsid
           command -v script
           command -v zsh
           command -v lua5.4
+          command -v python3
       - name: tests/setup.test.sh
         run: bash tests/setup.test.sh
