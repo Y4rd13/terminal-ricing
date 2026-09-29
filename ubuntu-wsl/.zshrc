@@ -1,11 +1,3 @@
-# ---- Startup notices (must stay above the instant prompt block) ----
-# Powerlevel10k buffers the console while zsh initializes: anything printed below the
-# preamble raises "Console output during zsh initialization detected" on every shell.
-
-# seneca: one line when Claude Code sessions were left open. No-op without `seneca`.
-# Looked up by hand as well: ~/.local/bin only reaches PATH further down this file.
-() { local seneca=${commands[seneca]:-$HOME/.local/bin/seneca}; [[ -x $seneca ]] && $seneca banner; } || true
-
 # ---- Powerlevel10k instant prompt (must be near the top) ----
 # Any initialization that may require console input, or print anything, goes above this.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
