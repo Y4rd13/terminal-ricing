@@ -55,6 +55,8 @@ If Ubuntu wasn't installed automatically with `wsl --install`:
 wsl --install -d Ubuntu-24.04
 ```
 
+> **Distro name:** `-d Ubuntu-24.04` registers the distro as `Ubuntu-24.04`, while `wsl --install` alone registers it as `Ubuntu`. The shipped `wezterm.lua` expects `Ubuntu` (`local WSL_DISTRO = 'Ubuntu'`). Check the name with `wsl -l -v` and change that line to match.
+
 Launch Ubuntu from the Start menu. On first run, create your username and password.
 
 Update the system:
@@ -62,6 +64,37 @@ Update the system:
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
+
+### Configure WSL
+
+WSL reads two config files. Tested with WSL 3.0.3 (kernel 6.18.54.1).
+
+**`%USERPROFILE%\.wslconfig`** (Windows side, applies to the WSL2 VM):
+
+```ini
+[wsl2]
+# WSL shares Windows' network interfaces; localhost works both ways
+networkingMode=mirrored
+# VM memory cap; size it to your RAM
+memory=20GB
+swap=8GB
+
+[experimental]
+# Already the default; frees page cache after ~2 min idle
+autoMemoryReclaim=dropCache
+```
+
+**`/etc/wsl.conf`** (inside the distro, needs `sudo`):
+
+```ini
+[boot]
+systemd=true
+
+[user]
+default=YOUR_USERNAME
+```
+
+Neither file applies until the VM restarts. Run `wsl --shutdown` from PowerShell, wait a few seconds, then open the distro again. Check that it took effect with `free -h` (memory and swap) and `systemctl is-system-running` (systemd).
 
 ## 3. Install WezTerm on Windows
 
@@ -90,6 +123,8 @@ Copy-Item "\\wsl$\Ubuntu\home\YOUR_USERNAME\projects\terminal-ricing\ubuntu-wsl\
 ```
 
 > **Note:** Replace `YOUR_USERNAME` with your WSL username. If using a different distro name, replace `Ubuntu` accordingly.
+
+`%USERPROFILE%\.wezterm.lua` also works. WezTerm checks `%USERPROFILE%\.config\wezterm\wezterm.lua` first and only falls back to `.wezterm.lua` when that file does not exist, so keep a single copy to avoid editing the one WezTerm ignores ([search order](https://wezterm.org/config/files.html)).
 
 ## 4. Install Nerd Fonts
 
